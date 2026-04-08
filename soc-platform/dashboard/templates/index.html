@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SOC Platform Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0a0e1a; color: #c9d1d9; min-height: 100vh; }
+
+    header { background: #0d1117; border-bottom: 1px solid #21262d; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 20px; color: #58a6ff; letter-spacing: 2px; }
+    .badge { background: #238636; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 12px; }
+    .last-refresh { margin-left: auto; font-size: 12px; color: #6e7681; }
+
+    main { padding: 24px 32px; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 20px; cursor: pointer; transition: border-color 0.2s; }
+    .stat-card:hover { border-color: #58a6ff; }
+    .stat-card .label { font-size: 11px; color: #6e7681; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-card .value { font-size: 36px; font-weight: bold; margin-top: 6px; }
+    .stat-card.critical .value { color: #f85149; }
+    .stat-card.high     .value { color: #ffa657; }
+    .stat-card.medium   .value { color: #e3b341; }
+    .stat-card.low      .value { color: #3fb950; }
+
+    .panels { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
+    .panel { background: #161b22; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; }
+    .panel-header { padding: 14px 20px; border-bottom: 1px solid #21262d; font-size: 13px; font-weight: bold; color: #58a6ff; display: flex; justify-content: space-between; align-items: center; }
+    .panel-body { overflow-y: auto; max-height: 560px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #0d1117; padding: 10px 14px; text-align: left; color: #6e7681; font-weight: normal; border-bottom: 1px solid #21262d; position: sticky; top: 0; z-index: 1; }
+    td { padding: 10px 14px; border-bottom: 1px solid #0d1117; vertical-align: middle; }
+    tr.alert-row { cursor: pointer; }
+    tr.alert-row:hover td { background: #1c2128; }
+
+    /* ── Detail expanded row ── */
+    tr.detail-row td { background: #0a0e1a; padding: 0; border-bottom: 2px solid #21262d; }
+    .detail-box { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .detail-section h4 { font-size: 10px; color: #6e7681; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .detail-fields { display: flex; flex-direction: column; gap: 6px; }
+    .detail-field { display: flex; gap: 10px; font-size: 12px; }
+    .detail-field .dk { color: #6e7681; min-width: 100px; flex-shrink: 0; }
+    .detail-field .dv { color: #e6edf3; word-break: break-all; }
+    .detail-field .dv.CRITICAL { color: #f85149; font-weight: bold; }
+    .detail-field .dv.HIGH     { color: #ffa657; font-weight: bold; }
+    .detail-field .dv.MEDIUM   { color: #e3b341; font-weight: bold; }
+    .detail-field .dv.LOW      { color: #3fb950; font-weight: bold; }
+
+    .parsed-badges { grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .pbadge { background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 5px 10px; font-size: 11px; display: flex; gap: 6px; }
+    .pbadge .pk { color: #6e7681; }
+    .pbadge .pv { color: #c9d1d9; }
+
+    .raw-log { grid-column: 1/-1; background: #010409; border: 1px solid #21262d; border-radius: 6px; padding: 14px 16px; font-size: 11px; color: #7ee787; white-space: pre-wrap; word-break: break-all; line-height: 1.7; }
+    .raw-log .rl-label { color: #6e7681; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; }
+
+    .sev { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .sev.CRITICAL { background: #490202; color: #f85149; border: 1px solid #f85149; }
+    .sev.HIGH     { background: #3d1f00; color: #ffa657; border: 1px solid #ffa657; }
+    .sev.MEDIUM   { background: #3d2f00; color: #e3b341; border: 1px solid #e3b341; }
+    .sev.LOW      { background: #0f2a14; color: #3fb950; border: 1px solid #3fb950; }
+
+    .src { display: inline-block; background: #0d1117; border: 1px solid #30363d; color: #58a6ff; font-size: 10px; padding: 2px 7px; border-radius: 3px; }
+
+    .ack-btn { background: none; border: 1px solid #30363d; color: #6e7681; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; }
+    .ack-btn:hover { border-color: #f85149; color: #f85149; }
+
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
+    .filter-btn { background: #161b22; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; }
+    .filter-btn:hover, .filter-btn.active { border-color: #58a6ff; color: #58a6ff; }
+    .search-box { margin-left: auto; background: #161b22; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-family: inherit; width: 240px; outline: none; }
+    .search-box:focus { border-color: #58a6ff; }
+
+    .agent-item { padding: 14px 16px; border-bottom: 1px solid #21262d; }
+    .agent-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .agent-dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; flex-shrink: 0; }
+    .agent-dot.offline { background: #f85149; }
+    .agent-name { font-size: 13px; font-weight: bold; }
+    .agent-id { font-size: 11px; color: #6e7681; margin-top: 1px; }
+    .agent-time { margin-left: auto; font-size: 11px; color: #6e7681; }
+    .agent-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .agent-tag { font-size: 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 3px; padding: 2px 7px; color: #6e7681; }
+
+    .arrow { color: #6e7681; font-size: 10px; display: inline-block; transition: transform 0.15s; margin-right: 2px; }
+    .arrow.open { transform: rotate(90deg); color: #58a6ff; }
+    .empty { padding: 40px; text-align: center; color: #6e7681; font-size: 13px; }
+
+    /* ── Toast Notifications ── */
+    .toast-container { position: fixed; top: 80px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 12px; max-width: 400px; }
+    .toast {
+      background: linear-gradient(135deg, #1c1c1c 0%, #2d1a1a 100%);
+      border: 1px solid #f85149;
+      border-left: 4px solid #f85149;
+      border-radius: 8px;
+      padding: 16px 20px;
+      box-shadow: 0 8px 32px rgba(248,81,73,0.3);
+      animation: slideIn 0.3s ease-out;
+      cursor: pointer;
+    }
+    .toast:hover { transform: scale(1.02); }
+    .toast-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .toast-icon { font-size: 20px; }
+    .toast-title { font-size: 13px; font-weight: bold; color: #f85149; }
+    .toast-machine { background: #490202; color: #f85149; font-size: 10px; padding: 2px 8px; border-radius: 4px; margin-left: auto; }
+    .toast-body { font-size: 12px; color: #e6edf3; line-height: 1.5; }
+    .toast-url { color: #ffa657; word-break: break-all; }
+    .toast-category { color: #6e7681; font-size: 11px; margin-top: 6px; }
+    .toast-time { color: #6e7681; font-size: 10px; margin-top: 8px; }
+    .toast-close { position: absolute; top: 8px; right: 12px; color: #6e7681; cursor: pointer; font-size: 16px; }
+    .toast-close:hover { color: #f85149; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+
+<!-- Toast notification container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<header>
+  <h1>⚡ SOC PLATFORM</h1>
+  <span class="badge">LIVE</span>
+  <span style="background:#3d1f00;color:#ffa657;border:1px solid #ffa657;font-size:11px;padding:2px 10px;border-radius:12px;letter-spacing:1px">🎓 LAB MODE</span>
+  <span class="last-refresh" id="lastRefresh">Refreshing...</span>
+</header>
+
+<main>
+  <div class="stats">
+    <div class="stat-card critical" onclick="setFilter('CRITICAL',null)">
+      <div class="label">Critical</div><div class="value" id="cnt-CRITICAL">–</div>
+    </div>
+    <div class="stat-card high" onclick="setFilter('HIGH',null)">
+      <div class="label">High</div><div class="value" id="cnt-HIGH">–</div>
+    </div>
+    <div class="stat-card medium" onclick="setFilter('MEDIUM',null)">
+      <div class="label">Medium</div><div class="value" id="cnt-MEDIUM">–</div>
+    </div>
+    <div class="stat-card low" onclick="setFilter('LOW',null)">
+      <div class="label">Low</div><div class="value" id="cnt-LOW">–</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" id="fb-all"      onclick="setFilter(null,this)">All</button>
+    <button class="filter-btn"        id="fb-CRITICAL" onclick="setFilter('CRITICAL',this)">Critical</button>
+    <button class="filter-btn"        id="fb-HIGH"     onclick="setFilter('HIGH',this)">High</button>
+    <button class="filter-btn"        id="fb-MEDIUM"   onclick="setFilter('MEDIUM',this)">Medium</button>
+    <button class="filter-btn"        id="fb-LOW"      onclick="setFilter('LOW',this)">Low</button>
+    <span id="agentFilterBadge" style="display:none;background:#0d419d;color:#58a6ff;border:1px solid #58a6ff;padding:4px 12px;border-radius:6px;font-size:12px;margin-left:8px;cursor:pointer" onclick="clearAgentFilter()">
+      🖥️ <span id="agentFilterName"></span> ✕
+    </span>
+    <input class="search-box" id="searchBox" placeholder="🔍  Search rule, agent, keyword..." oninput="renderAlerts()" />
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">
+        🚨 Alerts  <small style="font-weight:normal;color:#6e7681;font-size:11px">— click any row to expand full details</small>
+        <span id="alertCount" style="color:#6e7681;font-weight:normal;font-size:12px;margin-left:auto"></span>
+      </div>
+      <div class="panel-body">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:18px"></th>
+              <th>Time</th>
+              <th>Sev</th>
+              <th>Source</th>
+              <th>Rule</th>
+              <th>Agent</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="alertsBody">
+            <tr><td colspan="7" class="empty">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">🖥️ Agents</div>
+      <div class="panel-body" id="agentsBody"><div class="empty">Loading...</div></div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let severityFilter = null;
+  let agentFilter    = null;   // Filter by hostname
+  let allAlerts = [];
+  let expanded  = new Set();
+  let notifiedAlerts = new Set();  // Track which alerts we've shown notifications for
+  let notificationSound = null;
+
+  // Initialize notification sound
+  try {
+    notificationSound = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp+ZjHhwaG1yfYeLh4B3cnF2fISNkY6Kgnt1dXt/hoyPjYqEfnl3eHx/hImLiYaEgn98fH5+f4GEhYaGhoWEg4KBgIGBgoKDg4ODg4OCgoKCgoKCgoKCgoKCgoKBgYGBgYGBgYGBgYGBgYGBgQ==');
+  } catch(e) {}
+
+  function playNotificationSound() {
+    try {
+      if (notificationSound) {
+        notificationSound.currentTime = 0;
+        notificationSound.play().catch(() => {});
+      }
+    } catch(e) {}
+  }
+
+  function showBlockedSiteToast(alert) {
+    const container = document.getElementById('toastContainer');
+    
+    // Parse the alert to extract URL and category
+    const log = alert.matched_log || '';
+    let url = '', category = '', domain = '';
+    
+    // Extract URL from log: BROWSER_BLOCKED: Blocked site visited | URL=... | Category=... | Domain=...
+    const urlMatch = log.match(/URL=([^\|]+)/);
+    const catMatch = log.match(/Category=([^\|]+)/);
+    const domMatch = log.match(/Domain=([^\|]+)/);
+    
+    if (urlMatch) url = urlMatch[1].trim();
+    if (catMatch) category = catMatch[1].trim();
+    if (domMatch) domain = domMatch[1].trim();
+
+    const toastId = 'toast-' + alert.id;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.id = toastId;
+    toast.onclick = () => {
+      setAgentFilter(alert.hostname);
+      toast.remove();
+    };
+    
+    toast.innerHTML = `
+      <span class="toast-close" onclick="event.stopPropagation(); document.getElementById('${toastId}').remove();">×</span>
+      <div class="toast-header">
+        <span class="toast-icon">🚫</span>
+        <span class="toast-title">BLOCKED SITE VISITED</span>
+        <span class="toast-machine">${alert.hostname}</span>
+      </div>
+      <div class="toast-body">
+        <div>Student accessed blocked website:</div>
+        <div class="toast-url">${domain || url}</div>
+        ${category ? `<div class="toast-category">Category: ${category}</div>` : ''}
+        <div class="toast-time">${new Date(alert.timestamp * 1000).toLocaleTimeString()}</div>
+      </div>
+    `;
+    
+    container.appendChild(toast);
+    playNotificationSound();
+  }
+
+  function showScreenshotToast(alert) {
+    const container = document.getElementById('toastContainer');
+    
+    // Parse the alert to extract file info
+    const log = alert.matched_log || '';
+    let file = '', path = '', size = '', tool = '';
+    
+    const fileMatch = log.match(/File=([^\|]+)/);
+    const pathMatch = log.match(/Path=([^\|]+)/);
+    const sizeMatch = log.match(/Size=([^\|]+)/);
+    const toolMatch = log.match(/Tool=([^\|]+)/);
+    
+    if (fileMatch) file = fileMatch[1].trim();
+    if (pathMatch) path = pathMatch[1].trim();
+    if (sizeMatch) size = sizeMatch[1].trim();
+    if (toolMatch) tool = toolMatch[1].trim();
+
+    const toastId = 'toast-' + alert.id;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.id = toastId;
+    toast.style.borderColor = '#a855f7';
+    toast.style.borderLeftColor = '#a855f7';
+    toast.style.background = 'linear-gradient(135deg, #1c1c1c 0%, #1a1a2d 100%)';
+    toast.style.boxShadow = '0 8px 32px rgba(168,85,247,0.3)';
+    toast.onclick = () => {
+      setAgentFilter(alert.hostname);
+      toast.remove();
+    };
+    
+    toast.innerHTML = `
+      <span class="toast-close" onclick="event.stopPropagation(); document.getElementById('${toastId}').remove();">×</span>
+      <div class="toast-header">
+        <span class="toast-icon">📸</span>
+        <span class="toast-title" style="color:#a855f7">SCREENSHOT TAKEN</span>
+        <span class="toast-machine" style="background:#2d1a4d;color:#a855f7">${alert.hostname}</span>
+      </div>
+      <div class="toast-body">
+        <div>Student took a screenshot!</div>
+        ${file ? `<div class="toast-url" style="color:#a855f7">${file}</div>` : ''}
+        ${tool ? `<div class="toast-category">Tool: ${tool}</div>` : ''}
+        ${size ? `<div class="toast-category">Size: ${size}</div>` : ''}
+        <div class="toast-time">${new Date(alert.timestamp * 1000).toLocaleTimeString()}</div>
+      </div>
+    `;
+    
+    container.appendChild(toast);
+    playNotificationSound();
+  }
+
+  function checkForNewAlerts(alerts) {
+    for (const alert of alerts) {
+      // Skip if already notified
+      if (notifiedAlerts.has(alert.id)) continue;
+      
+      const log = alert.matched_log || '';
+      
+      // Check if this is a blocked site alert
+      if (log.startsWith('BROWSER_BLOCKED') || 
+          log.includes('Blocked site') || 
+          log.includes('blocked URL') ||
+          alert.rule_name?.toLowerCase().includes('blocked')) {
+        notifiedAlerts.add(alert.id);
+        showBlockedSiteToast(alert);
+        continue;
+      }
+      
+      // Check if this is a screenshot alert
+      if (log.startsWith('SCREENSHOT_TAKEN') || 
+          alert.rule_name?.toLowerCase().includes('screenshot')) {
+        notifiedAlerts.add(alert.id);
+        showScreenshotToast(alert);
+        continue;
+      }
+    }
+    
+    // Keep notifiedAlerts from growing too large
+    if (notifiedAlerts.size > 1000) {
+      const arr = Array.from(notifiedAlerts);
+      notifiedAlerts = new Set(arr.slice(-500));
+    }
+  }
+
+  function setFilter(sev, btn) {
+    severityFilter = sev;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) { btn.classList.add('active'); }
+    else if (sev) { document.getElementById('fb-'+sev)?.classList.add('active'); }
+    else { document.getElementById('fb-all')?.classList.add('active'); }
+    renderAlerts();
+  }
+
+  function setAgentFilter(hostname) {
+    agentFilter = hostname;
+    document.getElementById('agentFilterName').textContent = hostname;
+    document.getElementById('agentFilterBadge').style.display = 'inline-block';
+    renderAlerts();
+    renderAgents();
+  }
+
+  function clearAgentFilter() {
+    agentFilter = null;
+    document.getElementById('agentFilterBadge').style.display = 'none';
+    renderAlerts();
+    renderAgents();
+  }
+
+  const fmt  = ts => new Date(ts*1000).toLocaleTimeString();
+  const fmtF = ts => new Date(ts*1000).toLocaleString();
+  const ago  = ts => {
+    const s = Math.floor(Date.now()/1000 - ts);
+    return s<60 ? `${s}s ago` : s<3600 ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/3600)}h ago`;
+  };
+
+  // Parse "KEY=VALUE | KEY=VALUE" pipe format into array of {key,val}
+  function parseFields(raw) {
+    return raw.split('|').slice(1).map(p => {
+      const eq = p.indexOf('=');
+      if (eq === -1) return { key: 'Note', val: p.trim() };
+      return { key: p.substring(0,eq).trim(), val: p.substring(eq+1).trim() };
+    }).filter(f => f.val);
+  }
+
+  // Detect the source monitor from the log prefix
+  function srcOf(log) {
+    if (/^LAB_USB/.test(log))                                  return 'LAB_USB';
+    if (/^BROWSER_BLOCKED/.test(log))                          return 'BROWSER';
+    if (/^DNS_BLOCKED/.test(log))                              return 'DNS';
+    if (/^SUSPICIOUS_WINDOW/.test(log))                        return 'WINDOW';
+    if (/^USB_|^STORAGE_/.test(log))                           return 'USB';
+    if (/^SUSPICIOUS_PROCESS|^NEW_ROOT/.test(log))             return 'PROCESS';
+    if (/^SUSPICIOUS_CONN|^PORT_SCAN|^NEW_LISTEN/.test(log))   return 'NETWORK';
+    if (/^USER_LOGIN|^USER_LOGOUT/.test(log))                  return 'LOGIN';
+    if (/^HIGH_CPU|^HIGH_RAM|^HIGH_DISK/.test(log))            return 'RESOURCE';
+    if (/^NEW_CRON|^CRON_MOD/.test(log))                       return 'CRON';
+    if (/^SUDOERS|^NEW_SUID/.test(log))                        return 'PRIVESC';
+    if (/^FIM ALERT/.test(log))                                return 'FIM';
+    if (/^SCREENSHOT_TAKEN/.test(log))                         return 'SCREENSHOT';
+    return 'LOG';
+  }
+
+  // Color for source badge
+  function srcColor(src) {
+    const map = {
+      'LAB_USB': '#f85149', 'BROWSER': '#ffa657', 'DNS': '#ffa657',
+      'WINDOW': '#e3b341',  'PROCESS': '#f85149', 'NETWORK': '#ffa657',
+      'PRIVESC': '#f85149', 'FIM': '#f85149', 'SCREENSHOT': '#a855f7',
+    };
+    return map[src] || '#58a6ff';
+  }
+
+  function toggle(id) {
+    const row   = document.getElementById('dr-'+id);
+    const arrow = document.getElementById('ar-'+id);
+    if (!row) return;
+    if (expanded.has(id)) {
+      expanded.delete(id);
+      row.style.display = 'none';
+      arrow.classList.remove('open');
+    } else {
+      expanded.add(id);
+      row.style.display = '';
+      arrow.classList.add('open');
+    }
+  }
+
+  function detailHtml(a, source) {
+    const fields = parseFields(a.matched_log);
+    // First segment before first pipe = event description
+    const desc = a.matched_log.split('|')[0].trim();
+
+    const badges = fields.map(f =>
+      `<div class="pbadge"><span class="pk">${f.key}</span><span class="pv">${f.val}</span></div>`
+    ).join('');
+
+    return `
+      <tr class="detail-row" id="dr-${a.id}" style="display:none">
+        <td colspan="7">
+          <div class="detail-box">
+
+            <div class="detail-section">
+              <h4>Alert Details</h4>
+              <div class="detail-fields">
+                <div class="detail-field"><span class="dk">Alert ID</span><span class="dv">#${a.id}</span></div>
+                <div class="detail-field"><span class="dk">Rule</span><span class="dv">${a.rule_name} &nbsp;<span style="color:#6e7681">(${a.rule_id})</span></span></div>
+                <div class="detail-field"><span class="dk">Severity</span><span class="dv ${a.severity}">${a.severity}</span></div>
+                <div class="detail-field"><span class="dk">Source</span><span class="dv">${source}</span></div>
+                <div class="detail-field"><span class="dk">Time</span><span class="dv">${fmtF(a.timestamp)}</span></div>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4>Agent / Host</h4>
+              <div class="detail-fields">
+                <div class="detail-field"><span class="dk">Hostname</span><span class="dv">${a.hostname}</span></div>
+                <div class="detail-field"><span class="dk">Agent ID</span><span class="dv">${a.agent_id}</span></div>
+                <div class="detail-field"><span class="dk">Event</span><span class="dv">${desc.split(':')[0]}</span></div>
+                <div class="detail-field"><span class="dk">Description</span><span class="dv">${desc.includes(':') ? desc.split(':').slice(1).join(':').trim() : '—'}</span></div>
+              </div>
+            </div>
+
+            ${fields.length ? `<div class="parsed-badges">${badges}</div>` : ''}
+
+            <div class="raw-log">
+              <span class="rl-label">Full Event Log</span>${a.matched_log}
+            </div>
+
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function renderAlerts() {
+    const q      = document.getElementById('searchBox').value.toLowerCase();
+    const tbody  = document.getElementById('alertsBody');
+    let list     = allAlerts;
+
+    if (severityFilter) list = list.filter(a => a.severity === severityFilter);
+    if (agentFilter)    list = list.filter(a => a.hostname === agentFilter);
+    if (q) list = list.filter(a =>
+      a.rule_name.toLowerCase().includes(q) ||
+      a.matched_log.toLowerCase().includes(q) ||
+      a.hostname.toLowerCase().includes(q)
+    );
+
+    document.getElementById('alertCount').textContent = `${list.length} alerts`;
+
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">No alerts 🎉</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(a => {
+      const source = srcOf(a.matched_log);
+      const isOpen = expanded.has(a.id);
+      return `
+        <tr class="alert-row" onclick="toggle(${a.id})">
+          <td><span class="arrow ${isOpen?'open':''}" id="ar-${a.id}">▶</span></td>
+          <td>${fmt(a.timestamp)}</td>
+          <td><span class="sev ${a.severity}">${a.severity}</span></td>
+          <td><span class="src" style="color:${srcColor(source)};border-color:${srcColor(source)}40">${source}</span></td>
+          <td>${a.rule_name}</td>
+          <td><span style="cursor:pointer;text-decoration:underline;color:#58a6ff" onclick="event.stopPropagation();setAgentFilter('${a.hostname}')">${a.hostname}</span></td>
+          <td><button class="ack-btn" onclick="event.stopPropagation();ackAlert(${a.id})">ACK</button></td>
+        </tr>
+        ${detailHtml(a, source)}`;
+    }).join('');
+
+    // Restore open rows
+    expanded.forEach(id => {
+      const r = document.getElementById('dr-'+id);
+      if (r) r.style.display = '';
+    });
+  }
+
+  async function loadStats() {
+    const d = await fetch('/api/alerts/stats').then(r=>r.json());
+    ['CRITICAL','HIGH','MEDIUM','LOW'].forEach(s =>
+      document.getElementById('cnt-'+s).textContent = d[s]||0
+    );
+  }
+
+  async function loadAlerts() {
+    const newAlerts = await fetch('/api/alerts?limit=500').then(r=>r.json());
+    
+    // Check for new alerts (blocked sites, screenshots, etc.) - only on subsequent loads
+    if (allAlerts.length > 0) {
+      const existingIds = new Set(allAlerts.map(a => a.id));
+      const brandNew = newAlerts.filter(a => !existingIds.has(a.id));
+      checkForNewAlerts(brandNew);
+    } else {
+      // First load - mark existing alerts as already notified so we don't spam
+      newAlerts.forEach(a => notifiedAlerts.add(a.id));
+    }
+    
+    allAlerts = newAlerts;
+    renderAlerts();
+  }
+
+  async function ackAlert(id) {
+    await fetch(`/api/alerts/${id}/acknowledge`, {method:'POST'});
+    allAlerts = allAlerts.filter(a => a.id !== id);
+    expanded.delete(id);
+    renderAlerts();
+    loadStats();
+  }
+
+  let cachedAgents = [];
+
+  async function loadAgents() {
+    cachedAgents = await fetch('/api/agents').then(r=>r.json());
+    renderAgents();
+  }
+
+  function renderAgents() {
+    const agents = cachedAgents;
+    const body   = document.getElementById('agentsBody');
+    const now    = Date.now()/1000;
+    if (!agents.length) { body.innerHTML=`<div class="empty">No agents</div>`; return; }
+    body.innerHTML = agents.map(a => {
+      const online = (now - a.last_seen) < 30;
+      const isActive = agentFilter === a.hostname;
+      return `
+        <div class="agent-item" style="cursor:pointer;${isActive ? 'background:#0d419d;border-left:3px solid #58a6ff;' : ''}" onclick="setAgentFilter('${a.hostname}')">
+          <div class="agent-row">
+            <div class="agent-dot ${online?'':'offline'}"></div>
+            <div>
+              <div class="agent-name" style="${isActive ? 'color:#58a6ff;' : ''}">${a.hostname}</div>
+              <div class="agent-id">${a.agent_id}</div>
+            </div>
+            <div class="agent-time">${ago(a.last_seen)}</div>
+          </div>
+          <div class="agent-tags">
+            <span class="agent-tag">${online?'🟢 Online':'🔴 Offline'}</span>
+            <span class="agent-tag">Last seen ${fmt(a.last_seen)}</span>
+            ${isActive ? '<span class="agent-tag" style="background:#238636;color:#fff;">✓ Filtering</span>' : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function refresh() {
+    await Promise.all([loadStats(), loadAlerts(), loadAgents()]);
+    document.getElementById('lastRefresh').textContent = `Last refresh: ${new Date().toLocaleTimeString()}`;
+  }
+
+  refresh();
+  setInterval(refresh, 10000);
+</script>
+</body>
+</html>

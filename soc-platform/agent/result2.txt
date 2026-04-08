@@ -1,0 +1,90 @@
+(venv) admin1@admin1-HP-Slim-Desktop-S01-pF2xxx:~/SOC/SOC/soc-platform$ python agent/agent.py 
+[Agent] Skipping existing logs in /var/log/syslog (starting from end)
+[Agent] Skipping existing logs in /var/log/auth.log (starting from end)
+[FIM] Baseline: /etc/passwd → f780b909464cb4e5a847b0dbfeb475f6
+[FIM] Baseline: /etc/hosts → e57c9b92467c87dcfcd368deb7d2a0c8
+[SystemMonitor] Initializing all monitors...
+[USBMonitor] Baseline: 12 USB devices, 1 mounts
+[ProcessMonitor] Baseline: 320 processes
+[NetworkMonitor] Baseline: 2 connections, 2 listeners
+[LoginMonitor] Baseline: 1 active sessions
+[CronMonitor] Baseline: 20 cron files
+[PrivMonitor] Baseline: sudoers hash=unreadable, 32 SUID files
+[SystemMonitor] All monitors ready ✓
+[StudentMonitor] Initializing student activity monitors...
+[BrowserMonitor] Searching for browsers in HOME=/home/admin1
+[BrowserMonitor] Found chrome: /home/admin1/.config/google-chrome/Default/History
+[BrowserMonitor] Found chrome: /home/admin1/.config/google-chrome/Profile 1/History
+[BrowserMonitor] Found brave: /home/admin1/.config/BraveSoftware/Brave-Browser/Default/History
+[BrowserMonitor] Baseline chrome: tracking from latest entry ✓
+[BrowserMonitor] Baseline chrome: tracking from latest entry ✓
+[BrowserMonitor] Baseline brave: empty history, watching for new visits
+[WindowMonitor] xdotool found ✓
+[LabUSBMonitor] Baseline: 5 storage devices
+[ShellMonitor] Hook already present in /home/admin1/.bashrc ✓
+[ShellMonitor] Hook already present in /home/admin1/.zshrc ✓
+[ShellMonitor] Backup history: /home/admin1/.bash_history
+[StudentMonitor] Student monitors ready ✓
+[Agent] Starting | ID=agent-001 | Host=lab-machine-1
+[Agent] Connected to Manager at 192.168.245.129:9000
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=60006 | RemoteIP=192.168.245.129 | RemotePort=9000
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 0 logs | 0 FIM | 1 system | 0 student events
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 2 logs | 0 FIM | 0 system | 0 student events
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=35050 | RemoteIP=34.208.137.65 | RemotePort=443
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=35028 | RemoteIP=34.208.137.65 | RemotePort=443
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 0 logs | 0 FIM | 2 system | 0 student events
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[SystemMonitor][PROCESS] NEW_ROOT_PROCESS: New root process | PID=8120 | Name=kworker/u25:3 | CMD=
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=38042 | RemoteIP=2606:4700:90d3:9c77:6b43:4d5:6811:7a
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=38034 | RemoteIP=2606:4700:90d3:9c77:6b43:4d5:6811:7a
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=55934 | RemoteIP=2606:4700:90d3:9c77:6b9e:4d5:6811:7a
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=55924 | RemoteIP=2606:4700:90d3:9c77:6b9e:4d5:6811:7a
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 0 logs | 0 FIM | 5 system | 0 student events
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=38060 | RemoteIP=2606:4700:90d3:9c77:6b43:4d5:6811:7a
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=38050 | RemoteIP=2606:4700:90d3:9c77:6b43:4d5:6811:7a
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=55942 | RemoteIP=2606:4700:90d3:9c77:6b9e:4d5:6811:7a
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=34852 | RemoteIP=2606:4700:83b3:9c77:6ba7:6da:6811:7a
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 3 logs | 0 FIM | 4 system | 0 student events
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 3 logs | 0 FIM | 0 system | 0 student events
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 9 logs | 0 FIM | 0 system | 0 student events
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=39714 | RemoteIP=54.191.236.175 | RemotePort=443
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 0 logs | 0 FIM | 1 system | 0 student events
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=39730 | RemoteIP=54.191.236.175 | RemotePort=443
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 0 logs | 0 FIM | 1 system | 0 student events
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[BrowserMonitor] DB read error: no such table: moz_places
+[SystemMonitor][NETWORK] NEW_CONNECTION: New TCP connection | LocalPort=44976 | RemoteIP=52.35.121.63 | RemotePort=443
+[BrowserMonitor] DB read error: no such table: moz_places
+[Agent] Sent 0 logs | 0 FIM | 1 system | 0 student events
+^CTraceback (most recent call last):
+  File "/home/admin1/SOC/SOC/soc-platform/agent/agent.py", line 205, in <module>
+    agent.run()
+  File "/home/admin1/SOC/SOC/soc-platform/agent/agent.py", line 197, in run
+    time.sleep(AGENT_SEND_INTERVAL)
+KeyboardInterrupt
+
+(venv) admin1@admin1-HP-Slim-Desktop-S01-pF2xxx:~/SOC/SOC/soc-platform$ 
+
