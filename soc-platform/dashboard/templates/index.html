@@ -3,381 +3,1008 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SOC Platform Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  
+  <title>Lab Monitor – Staff Dashboard</title>
+  <meta name="description" content="School lab monitoring dashboard for staff. View machine status and alerts at a glance.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <!-- React & Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
+    /* ─── Design Tokens (Dark Theme) ──────────────────────────────── */
     :root {
-      --bg: #0f1115; --bg-panel: #16181d; --bg-hover: #1e2128; --border: #242831;
-      --text: #e1e4e8; --text-muted: #8b949e;
-      --critical: #f85149; --high: #db6d28; --medium: #d29922; --low: #2ea043;
-      --accent: #58a6ff;
+      --bg:           #0d1117;
+      --bg-surface:   #161b22;
+      --bg-surface-2: #1c2230;
+      --bg-hover:     #21262d;
+      --border:       #30363d;
+      --border-2:     #3d444d;
+      --text:         #e6edf3;
+      --text-2:       #8d96a0;
+      --text-3:       #545d68;
+
+      --critical:    #f85149;
+      --critical-bg: rgba(248,81,73,.12);
+      --critical-br: rgba(248,81,73,.3);
+      --high:        #e08d3c;
+      --high-bg:     rgba(224,141,60,.12);
+      --high-br:     rgba(224,141,60,.3);
+      --medium:      #d29922;
+      --medium-bg:   rgba(210,153,34,.12);
+      --medium-br:   rgba(210,153,34,.3);
+      --low:         #3fb950;
+      --low-bg:      rgba(63,185,80,.12);
+      --low-br:      rgba(63,185,80,.3);
+      --online:      #3fb950;
+      --offline:     #545d68;
+
+      --accent:      #58a6ff;
+      --accent-bg:   rgba(88,166,255,.12);
+      --accent-br:   rgba(88,166,255,.25);
+
+      --radius-sm: 8px;
+      --radius:    12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
+      --shadow:    0 4px 16px rgba(0,0,0,.4);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,.55);
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
-    
-    header { background: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 16px; }
-    header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
-    .badge { background: var(--bg-hover); color: var(--text-muted); font-size: 11px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); }
-    
-    main { padding: 32px; max-width: 1600px; margin: 0 auto; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      font-size: 15px;
+    }
 
-    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
-    .stat-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 24px; cursor: pointer; transition: background 0.15s; }
-    .stat-card:hover { background: var(--bg-hover); }
-    .stat-card .label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-    .stat-card .value { font-size: 28px; font-weight: 600; margin-top: 8px; }
-    .stat-card.CRITICAL .value { color: var(--critical); }
-    .stat-card.HIGH .value { color: var(--high); }
-    .stat-card.MEDIUM .value { color: var(--medium); }
-    .stat-card.LOW .value { color: var(--low); }
+    /* ─── Header ──────────────────────────────────────────────────── */
+    .header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 62px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #1f6feb, #388bfd);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(31,111,235,.4);
+    }
+    .header-title    { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
+    .header-subtitle { font-size: 12px; color: var(--text-3); margin-top: 1px; }
+    .header-spacer   { flex: 1; }
+    .refresh-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-2);
+      padding: 5px 12px;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+    }
+    .live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--online);
+      animation: blink 2.5s ease infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-    .toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
-    .input-box { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: inherit; outline: none; }
-    .input-box:focus { border-color: var(--accent); }
-    .search-input { width: 300px; }
-    .date-input { width: 140px; color-scheme: dark; }
+    /* ─── Summary Bar ─────────────────────────────────────────────── */
+    .summary-bar {
+      background: linear-gradient(90deg, #1f2d45 0%, #162032 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex; align-items: center; gap: 28px;
+    }
+    .sum-item { display: flex; align-items: center; gap: 10px; }
+    .sum-icon { font-size: 20px; }
+    .sum-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+    .sum-label { font-size: 11px; color: var(--text-2); margin-top: 2px; letter-spacing: .2px; }
+    .sum-sep   { width: 1px; height: 36px; background: var(--border); }
 
-    .filter-btn { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
-    .filter-btn:hover { color: var(--text); background: var(--bg-hover); }
-    .filter-btn.active { border-color: var(--text-muted); color: var(--text); }
+    /* ─── Main Layout ─────────────────────────────────────────────── */
+    main {
+      padding: 24px 32px;
+      max-width: 1600px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 22px;
+    }
+    .col-left  { display: flex; flex-direction: column; gap: 18px; }
+    .col-right { display: flex; flex-direction: column; gap: 18px; }
 
-    .panels { display: grid; grid-template-columns: 1fr 300px; gap: 24px; }
-    .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; }
-    .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
-    .panel-body { overflow-y: auto; max-height: calc(100vh - 280px); min-height: 400px; }
+    /* ─── Card ────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .card-title {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-count { font-size: 12px; color: var(--text-3); }
 
-    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-    th { background: var(--bg-panel); padding: 12px 20px; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
-    td { padding: 12px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    tr.alert-row { cursor: pointer; transition: background 0.1s; border-bottom: 1px solid var(--border); }
-    tr.alert-row:hover td { background: var(--bg-hover); }
+    /* ─── Severity Stat Cards ─────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      cursor: pointer;
+      transition: all .18s ease;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      transition: opacity .18s;
+      opacity: 0;
+    }
+    .stat-card:hover { background: var(--bg-hover); border-color: var(--border-2); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .stat-card.active-filter { border-color: var(--border-2); }
+    .stat-card.active-filter::before { opacity: 1; }
+    .stat-label   { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+    .stat-value   { font-size: 40px; font-weight: 700; line-height: 1; }
+    .stat-desc    { font-size: 11px; color: var(--text-3); margin-top: 6px; }
 
-    tr.detail-row td { background: var(--bg); padding: 0; border-bottom: 1px solid var(--border); }
-    .detail-box { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .detail-section h4 { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-    .detail-field { display: flex; gap: 12px; font-size: 13px; margin-bottom: 8px; }
-    .detail-field .dk { color: var(--text-muted); min-width: 100px; }
-    .detail-field .dv { color: var(--text); word-break: break-all; }
+    .stat-card.CRITICAL { border-color: var(--critical-br); }
+    .stat-card.CRITICAL::before { background: var(--critical); }
+    .stat-card.CRITICAL .stat-label { color: var(--critical); }
+    .stat-card.CRITICAL .stat-value { color: var(--critical); }
+    .stat-card.HIGH { border-color: var(--high-br); }
+    .stat-card.HIGH::before { background: var(--high); }
+    .stat-card.HIGH .stat-label { color: var(--high); }
+    .stat-card.HIGH .stat-value { color: var(--high); }
+    .stat-card.MEDIUM { border-color: var(--medium-br); }
+    .stat-card.MEDIUM::before { background: var(--medium); }
+    .stat-card.MEDIUM .stat-label { color: var(--medium); }
+    .stat-card.MEDIUM .stat-value { color: var(--medium); }
+    .stat-card.LOW { border-color: var(--low-br); }
+    .stat-card.LOW::before { background: var(--low); }
+    .stat-card.LOW .stat-label { color: var(--low); }
+    .stat-card.LOW .stat-value { color: var(--low); }
 
-    .raw-log { grid-column: 1/-1; background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-muted); white-space: pre-wrap; word-break: break-all; }
+    /* ─── Toolbar ─────────────────────────────────────────────────── */
+    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .tab-group {
+      display: flex;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 3px; gap: 2px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-2);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px; font-weight: 500; font-family: inherit;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { background: var(--bg-hover); color: var(--text); }
+    .tab-btn.active {
+      background: var(--bg-surface);
+      color: var(--accent);
+      box-shadow: var(--shadow-sm);
+      font-weight: 600;
+      border: 1px solid var(--border);
+    }
+    .toolbar-spacer { flex: 1; }
+    .search-input, .date-input {
+      padding: 7px 13px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13px; font-family: inherit;
+      background: var(--bg-surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .search-input:focus, .date-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-bg);
+    }
+    .search-input::placeholder { color: var(--text-3); }
+    .search-input { width: 220px; }
+    .date-input   { color-scheme: dark; }
 
-    .sev { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
-    .sev::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; }
-    .sev.CRITICAL::before { background: var(--critical); }
-    .sev.HIGH::before { background: var(--high); }
-    .sev.MEDIUM::before { background: var(--medium); }
-    .sev.LOW::before { background: var(--low); }
-    .sev.CRITICAL { color: var(--critical); }
-    .sev.HIGH { color: var(--high); }
-    .sev.MEDIUM { color: var(--medium); }
-    .sev.LOW { color: var(--low); }
+    /* ─── Alert Table ─────────────────────────────────────────────── */
+    .alert-list { overflow-y: auto; max-height: calc(100vh - 340px); min-height: 280px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: var(--bg-surface-2);
+      padding: 10px 16px;
+      font-size: 11px; font-weight: 600; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 2;
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px; vertical-align: middle;
+    }
+    .alert-row { cursor: pointer; transition: background .1s; }
+    .alert-row:hover td { background: var(--bg-hover); }
 
-    .src-badge { display: inline-block; border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+    /* ─── Severity Badges ─────────────────────────────────────────── */
+    .sev-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: .3px;
+      white-space: nowrap;
+    }
+    .sev-badge::before {
+      content: ''; display: block;
+      width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+    }
+    .sev-badge.CRITICAL { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-br); }
+    .sev-badge.CRITICAL::before { background: var(--critical); }
+    .sev-badge.HIGH     { background: var(--high-bg);     color: var(--high);     border: 1px solid var(--high-br); }
+    .sev-badge.HIGH::before     { background: var(--high); }
+    .sev-badge.MEDIUM   { background: var(--medium-bg);   color: var(--medium);   border: 1px solid var(--medium-br); }
+    .sev-badge.MEDIUM::before   { background: var(--medium); }
+    .sev-badge.LOW      { background: var(--low-bg);      color: var(--low);      border: 1px solid var(--low-br); }
+    .sev-badge.LOW::before      { background: var(--low); }
 
-    .ack-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; }
-    .ack-btn:hover { border-color: var(--text); color: var(--text); }
+    /* ─── Source Badge ────────────────────────────────────────────── */
+    .src-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px; font-weight: 500;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      white-space: nowrap;
+    }
 
-    .agent-item { padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
-    .agent-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .agent-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--low); flex-shrink: 0; }
-    .agent-dot.offline { background: var(--text-muted); }
-    .agent-name { font-size: 13px; font-weight: 500; color: var(--text); }
-    .agent-name:hover { color: var(--accent); }
-    .agent-time { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+    /* ─── Acknowledge Button ──────────────────────────────────────── */
+    .ack-btn {
+      background: var(--accent-bg);
+      border: 1px solid var(--accent-br);
+      color: var(--accent);
+      padding: 5px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .ack-btn:hover {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(88,166,255,.35);
+      transform: translateY(-1px);
+    }
 
-    .empty { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    /* ─── Expand Detail ───────────────────────────────────────────── */
+    .expand-chevron { font-size: 11px; color: var(--text-3); transition: transform .2s; display: inline-block; }
+    .expand-chevron.open { transform: rotate(180deg); }
 
-    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 12px; width: 320px; }
-    .toast { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: slideIn 0.2s ease-out; cursor: pointer; }
-    .toast-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--text); }
-    .toast-body { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
-    .toast-close { color: var(--text-muted); cursor: pointer; }
+    .detail-row td {
+      padding: 0 !important;
+      background: var(--bg) !important;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-grid {
+      padding: 20px 20px 20px 36px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 10px;
+    }
+    .detail-field {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .detail-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+    .detail-key  { font-size: 11px; color: var(--text-3); font-weight: 500; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .3px; }
+    .detail-val  { font-size: 13px; color: var(--text); font-weight: 500; word-break: break-word; line-height: 1.4; }
+
+    /* ─── Agent Cards ─────────────────────────────────────────────── */
+    .agents-grid { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+    .agent-card {
+      background: var(--bg-surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 13px 14px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .agent-card:hover { border-color: var(--border-2); background: var(--bg-hover); }
+    .agent-card.selected { border-color: var(--accent); background: var(--accent-bg); }
+    .agent-card-top { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
+    .status-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.online  { background: var(--online);  box-shadow: 0 0 0 3px rgba(63,185,80,.25); }
+    .status-dot.offline { background: var(--offline); }
+    .agent-hostname  { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+    .status-label-badge {
+      font-size: 10px; font-weight: 600;
+      padding: 1px 7px; border-radius: 20px;
+    }
+    .status-label-badge.online  { background: var(--low-bg);  color: var(--online);  border: 1px solid var(--low-br); }
+    .status-label-badge.offline { background: var(--bg-hover); color: var(--offline); border: 1px solid var(--border); }
+    .agent-last-seen { font-size: 11px; color: var(--text-3); }
+
+    /* ─── Toast Notifications ─────────────────────────────────────── */
+    .toast-wrapper {
+      position: fixed; top: 76px; right: 22px;
+      z-index: 9999;
+      display: flex; flex-direction: column; gap: 10px;
+      width: 340px; pointer-events: none;
+    }
+    .toast {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-lg);
+      pointer-events: all;
+      cursor: pointer;
+      border-left: 4px solid transparent;
+      animation: toastSlide .3s cubic-bezier(.4,0,.2,1);
+    }
+    .toast.CRITICAL { border-left-color: var(--critical); }
+    .toast.HIGH     { border-left-color: var(--high); }
+    .toast-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .toast-level {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      padding: 2px 7px; border-radius: 20px;
+    }
+    .toast-level.CRITICAL { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical-br); }
+    .toast-level.HIGH     { background: var(--high-bg);     color: var(--high);     border: 1px solid var(--high-br); }
+    .toast-machine { font-size: 12px; color: var(--text-2); font-weight: 500; }
+    .toast-close   { margin-left: auto; font-size: 14px; color: var(--text-3); }
     .toast-close:hover { color: var(--text); }
-    @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .toast-body { font-size: 13px; color: var(--text); line-height: 1.5; }
+    .toast-time { font-size: 11px; color: var(--text-3); margin-top: 5px; }
+    @keyframes toastSlide {
+      from { transform: translateX(60px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    /* ─── Misc ────────────────────────────────────────────────────── */
+    .hostname-link { color: var(--accent); cursor: pointer; font-weight: 500; }
+    .hostname-link:hover { text-decoration: underline; }
+    .empty-state { padding: 60px 20px; text-align: center; color: var(--text-3); }
+    .empty-icon  { font-size: 44px; margin-bottom: 12px; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .empty-desc  { font-size: 13px; }
+    .active-filter-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent-bg); border: 1px solid var(--accent-br);
+      color: var(--accent); font-size: 12px; font-weight: 600;
+      padding: 4px 12px; border-radius: 20px; cursor: pointer;
+    }
+
+    @media (max-width: 1024px) {
+      main { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: repeat(2,1fr); }
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
 <script type="text/babel">
-  const { useState, useEffect, useMemo } = React;
-
+  const { useState, useEffect, useRef, useMemo, useCallback } = React;
   const API_BASE = '/api';
 
-  function formatTime(ts) {
-    if (!ts) return "";
-    return new Date(ts*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+  /* ─── Time Helpers ────────────────────────────────────────────── */
+  function fmtTime(ts) {
+    if (!ts) return '';
+    return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
-
-  function formatFullTime(ts) {
-    if (!ts) return "";
-    return new Date(ts*1000).toLocaleString();
+  function fmtFull(ts) {
+    if (!ts) return '';
+    return new Date(ts * 1000).toLocaleString([], {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
   }
-
   function timeAgo(ts) {
-    const s = Math.floor(Date.now()/1000 - ts);
-    return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/3600)}h ago`;
+    const s = Math.floor(Date.now() / 1000 - ts);
+    if (s < 5)     return 'just now';
+    if (s < 60)    return `${s} seconds ago`;
+    if (s < 3600)  return `${Math.floor(s/60)} minute${Math.floor(s/60)===1?'':'s'} ago`;
+    if (s < 86400) return `${Math.floor(s/3600)} hour${Math.floor(s/3600)===1?'':'s'} ago`;
+    return `${Math.floor(s/86400)} day${Math.floor(s/86400)===1?'':'s'} ago`;
   }
 
-  function getSourcePrefix(log) {
-    if (!log) return 'LOG';
-    const s = log.split('_')[0];
-    const mappings = {
-      'LAB': 'USB', 'BROWSER': 'BROWSER', 'DNS': 'DNS',
-      'SUSPICIOUS': 'SYS', 'USB': 'USB', 'STORAGE': 'USB',
-      'NEW': 'SYS', 'PORT': 'NET', 'USER': 'LOGIN', 'HIGH': 'PERF',
-      'CRON': 'SYS', 'SUDOERS': 'PRIV', 'FIM': 'FIM', 'SCREENSHOT': 'SCREEN'
-    };
-    return mappings[s] || 'LOG';
+  /* ─── Log Parser ──────────────────────────────────────────────── */
+  /*
+   * Handles all log formats emitted by the Windows agent:
+   *  BROWSER  → [ts] Browser=brave URL=https://... Title="..."
+   *  PROCESS  → Process Started: notepad.exe (PID: 1234, User: DOMAIN\user)
+   *  WINDOW   → Window Focus: Calculator (calc.exe)
+   *  PS       → PowerShell: Get-Process
+   *  USB      → USB Device Connected: Kingston DataTraveler (ID: USB\...)
+   *  EVENTLOG → [ts] EventID=4624 Type=AUDIT_SUCCESS Source=... User=... Computer=... Message:...
+   */
+  function parseLog(raw, ruleName) {
+    if (!raw) return [];
+    const fields = [];
+
+    // ── Timestamp bracket [2026-04-12T15:17:24...]
+    const tsMatch = raw.match(/^\[([^\]]+)\]/);
+    if (tsMatch) {
+      try {
+        const d = new Date(tsMatch[1]);
+        if (!isNaN(d)) fields.push({ icon: '🕐', label: 'Time', value: d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) });
+      } catch(_) {}
+    }
+
+    // ── BROWSER log  (Browser=... URL=... Title=...)
+    if (/Browser=/i.test(raw)) {
+      const kvRe = /([A-Za-z_][A-Za-z0-9_\-]*)=("([^"]*)"|([\S]+))/g;
+      let m;
+      while ((m = kvRe.exec(raw)) !== null) {
+        const key = m[1].toLowerCase();
+        const val = m[3] !== undefined ? m[3] : m[4];
+        if (key === 'browser') { fields.push({ icon: '🌐', label: 'Browser', value: capitalize(val) }); continue; }
+        if (key === 'url') {
+          try {
+            const url = new URL(val);
+            const domain = url.hostname.replace(/^www\./, '');
+            fields.push({ icon: '🔗', label: 'Site Visited', value: domain });
+            const q = url.searchParams.get('q') || url.searchParams.get('query') || url.searchParams.get('search');
+            if (q) fields.push({ icon: '🔍', label: 'Search Query', value: `"${q}"` });
+          } catch(_) { fields.push({ icon: '🔗', label: 'URL', value: val }); }
+          continue;
+        }
+        if (key === 'title') { fields.push({ icon: '📝', label: 'Page Title', value: val }); continue; }
+      }
+      return fields;
+    }
+
+    // ── WINDOWS EVENT LOG  (EventID=... Type=... Source=... User=... Computer=... Message:...)
+    if (/EventID=/i.test(raw)) {
+      const eidM = raw.match(/EventID=(\d+)/i);
+      const typM = raw.match(/Type=(\S+)/i);
+      const srcM = raw.match(/Source=([^\s]+)/i);
+      const usrM = raw.match(/User=([^\s]+)/i);
+      const cmpM = raw.match(/Computer=([^\s]+)/i);
+      const msgM = raw.match(/Message:\s*(.+)/is);
+
+      if (eidM) fields.push({ icon: '🔢', label: 'Event ID',  value: eidM[1] });
+      if (typM) fields.push({ icon: '⚡', label: 'Event Type', value: friendlyEventType(typM[1]) });
+      if (srcM) fields.push({ icon: '📦', label: 'Source',    value: srcM[1] });
+      if (usrM && usrM[1] !== 'N/A') fields.push({ icon: '👤', label: 'User',  value: usrM[1] });
+      if (cmpM) fields.push({ icon: '💻', label: 'Machine',   value: cmpM[1] });
+      if (msgM) fields.push({ icon: '📋', label: 'Detail',    value: msgM[1].trim().slice(0, 200) });
+      return fields;
+    }
+
+    // ── PROCESS STARTED/TERMINATED
+    if (/Process Started:/i.test(raw)) {
+      const pnM = raw.match(/Process Started:\s*([^\s(]+)/i);
+      const pidM = raw.match(/PID:\s*(\d+)/i);
+      const usrM = raw.match(/User:\s*([^)]+)/i);
+      if (pnM) fields.push({ icon: '🚀', label: 'App Launched', value: pnM[1] });
+      if (pidM) fields.push({ icon: '🔢', label: 'Process ID', value: pidM[1] });
+      if (usrM && usrM[1] !== 'N/A') fields.push({ icon: '👤', label: 'User', value: usrM[1].trim() });
+      return fields;
+    }
+    if (/Process Terminated:/i.test(raw)) {
+      const pidM = raw.match(/PID\s*(\d+)/i);
+      fields.push({ icon: '🛑', label: 'Process Ended', value: pidM ? `PID ${pidM[1]}` : raw });
+      return fields;
+    }
+
+    // ── ACTIVE WINDOW FOCUS  (Window Focus: Title (process.exe))
+    if (/Window Focus:/i.test(raw)) {
+      const wfM = raw.match(/Window Focus:\s*(.+?)\s*\(([^)]+)\)/i);
+      if (wfM) {
+        fields.push({ icon: '🖥️', label: 'Window Opened', value: wfM[1].trim() });
+        fields.push({ icon: '⚙️', label: 'Application',   value: wfM[2].trim() });
+      } else {
+        fields.push({ icon: '🖥️', label: 'Window', value: raw.replace(/Window Focus:\s*/i, '') });
+      }
+      return fields;
+    }
+
+    // ── POWERSHELL COMMAND
+    if (/PowerShell:/i.test(raw)) {
+      const cmd = raw.replace(/PowerShell:\s*/i, '').trim();
+      fields.push({ icon: '💬', label: 'Command Typed', value: cmd });
+      fields.push({ icon: '🖥️', label: 'Application',   value: 'PowerShell / Terminal' });
+      return fields;
+    }
+
+    // ── USB EVENTS
+    if (/USB Device/i.test(raw)) {
+      const connM   = raw.match(/USB Device Connected:\s*([^(]+)/i);
+      const discM   = raw.match(/USB Device Disconnected:\s*(.+)/i);
+      const deviceM = raw.match(/\(ID:\s*([^)]+)\)/i);
+      if (connM) {
+        fields.push({ icon: '🔌', label: 'USB Plugged In', value: connM[1].trim() });
+        if (deviceM) fields.push({ icon: '🔢', label: 'Device ID', value: deviceM[1].trim() });
+      } else if (discM) {
+        fields.push({ icon: '🔌', label: 'USB Removed', value: discM[1].trim() });
+      }
+      return fields;
+    }
+
+    // ── Fallback: generic key=value scan
+    const kvRe = /([A-Za-z_][A-Za-z0-9_\-]*)=("([^"]*)"|([\S]+))/g;
+    let m;
+    while ((m = kvRe.exec(raw)) !== null) {
+      const key = m[1].toLowerCase();
+      const val = m[3] !== undefined ? m[3] : m[4];
+      const iconMap = {
+        user:'👤', username:'👤', machine:'💻', hostname:'💻',
+        process:'⚙️', proc:'⚙️', port:'🔌', file:'📁', path:'📁',
+        ip:'🌍', src_ip:'🌍', dst_ip:'🌍', device:'💾', action:'⚡', event:'⚡',
+      };
+      fields.push({ icon: iconMap[key] || '📄', label: capitalize(m[1].replace(/_/g,' ')), value: val });
+    }
+    if (fields.length === 0) {
+      const clean = raw.replace(/^\[[^\]]+\]\s*/, '').trim();
+      if (clean) fields.push({ icon: '📋', label: 'Details', value: clean.slice(0, 300) });
+    }
+    return fields;
   }
 
-  function syntaxHighlightLog(logText) {
-    if(!logText) return '';
-    let esc = logText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    let html = esc.replace(/^(\[[^\]]+\])/, '<span style="color:#8b949e;font-weight:bold">$1</span>')
-       .replace(/([a-zA-Z0-9_\-]+)=('?.*?'?|&quot;.*?&quot;|\S+)/g, function(match, p1, p2) {
-         if (p1 === "style" || p1 === "color" || p1 === "font-weight" || match.includes('span')) return match;
-         return `<span style="color:#58a6ff">${p1}</span>=<span style="color:#a5d6ff">${p2}</span>`;
-       });
-    return { __html: html };
+  function capitalize(str) {
+    return str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : str;
+  }
+  function humaniseRule(name) {
+    if (!name) return name;
+    return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  function friendlyEventType(t) {
+    const m = { AUDIT_SUCCESS:'Login Success', AUDIT_FAILURE:'Login Failed', ERROR:'System Error', WARNING:'Warning', INFO:'Info' };
+    return m[t] || t;
   }
 
+  // Determine source category from log content to show a readable badge
+  function detectSource(log, ruleName) {
+    if (!log && !ruleName) return { icon: '📋', label: 'Event' };
+    const text = (log || '') + (ruleName || '');
+    if (/Browser=/i.test(log))                           return { icon: '🌐', label: 'Browser' };
+    if (/PowerShell:/i.test(log))                        return { icon: '💬', label: 'Terminal' };
+    if (/Window Focus:/i.test(log))                      return { icon: '🖥️', label: 'App Focus' };
+    if (/Process (Started|Terminated)/i.test(log))       return { icon: '🚀', label: 'Process' };
+    if (/USB Device/i.test(log))                         return { icon: '🔌', label: 'USB' };
+    if (/EventID=/i.test(log))                           return { icon: '🛡️', label: 'System Log' };
+    return { icon: '📋', label: 'Event' };
+  }
+
+  /* ─── Toast ───────────────────────────────────────────────────── */
+  function Toast({ t, onClose }) {
+    return (
+      <div className={`toast ${t.severity}`} onClick={onClose}>
+        <div className="toast-top">
+          <span className={`toast-level ${t.severity}`}>{t.severity}</span>
+          <span className="toast-machine">💻 {t.hostname}</span>
+          <span className="toast-close">✕</span>
+        </div>
+        <div className="toast-body">{humaniseRule(t.rule_name)}</div>
+        <div className="toast-time">{fmtFull(t.timestamp)}</div>
+      </div>
+    );
+  }
+
+  /* ─── Detail Row ──────────────────────────────────────────────── */
+  function AlertDetail({ alert: a }) {
+    const parsed = useMemo(() => parseLog(a.matched_log, a.rule_name), [a.matched_log, a.rule_name]);
+    const base = [
+      { icon: '🕐', label: 'Time',     value: fmtFull(a.timestamp) },
+      { icon: '💻', label: 'Machine',  value: a.hostname || '—' },
+      { icon: '⚠️', label: 'Severity', value: a.severity },
+      { icon: '📋', label: 'Rule',     value: humaniseRule(a.rule_name) },
+    ];
+    // Merge: base fields + parsed fields (excluding duplicates by label)
+    const baseLabels = new Set(base.map(f => f.label));
+    const extra = parsed.filter(f => !baseLabels.has(f.label));
+    const all = [...base, ...extra];
+
+    return (
+      <div className="detail-grid">
+        {all.map((f, i) => (
+          <div key={i} className="detail-field">
+            <div className="detail-icon">{f.icon}</div>
+            <div>
+              <div className="detail-key">{f.label}</div>
+              <div className="detail-val">{f.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  /* ─── App ─────────────────────────────────────────────────────── */
   function App() {
-    const [alerts, setAlerts] = useState([]);
-    const [agents, setAgents] = useState([]);
-    const [stats, setStats] = useState({ CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 });
-    
-    const [lastSync, setLastSync] = useState(Date.now());
-    
-    // Filters
-    const [sevFilter, setSevFilter] = useState(null);
+    const [alerts, setAlerts]     = useState([]);
+    const [agents, setAgents]     = useState([]);
+    const [stats,  setStats]      = useState({ CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 });
+    const [lastSync, setLastSync] = useState(null);
+
+    const [tabFilter,   setTabFilter]   = useState('all');
+    const [sevFilter,   setSevFilter]   = useState(null);
     const [agentFilter, setAgentFilter] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [dateFilter, setDateFilter] = useState('');
-    
-    const [expanded, setExpanded] = useState(new Set());
+    const [dateFilter,  setDateFilter]  = useState('');
+    const [expanded,    setExpanded]    = useState(new Set());
+    const [toasts,      setToasts]      = useState([]);
 
-    const fetchData = async () => {
+    const knownIds = useRef(new Set());
+    const isFirst  = useRef(true);
+
+    /* ─ Fetch ─ */
+    const fetchData = useCallback(async () => {
       try {
-        let alertsUrl = `${API_BASE}/alerts?limit=500`;
-        if (dateFilter) alertsUrl += '&date=' + encodeURIComponent(dateFilter);
-        
+        let url = `${API_BASE}/alerts?limit=500`;
+        if (dateFilter) url += '&date=' + encodeURIComponent(dateFilter);
+
         const [alertsData, agentsData, statsData] = await Promise.all([
-          fetch(alertsUrl).then(r=>r.json()),
-          fetch(`${API_BASE}/agents`).then(r=>r.json()),
-          fetch(`${API_BASE}/alerts/stats`).then(r=>r.json())
+          fetch(url).then(r => r.json()),
+          fetch(`${API_BASE}/agents`).then(r => r.json()),
+          fetch(`${API_BASE}/alerts/stats`).then(r => r.json()),
         ]);
-        
+
+        if (!isFirst.current) {
+          const brand = alertsData.filter(
+            a => ['HIGH','CRITICAL'].includes(a.severity) && !knownIds.current.has(a.id)
+          );
+          if (brand.length) {
+            setToasts(prev =>
+              [...brand.map(a => ({ ...a, _tid: `${a.id}-${Date.now()}` })), ...prev].slice(0, 4)
+            );
+          }
+        }
+        isFirst.current = false;
+        alertsData.forEach(a => knownIds.current.add(a.id));
+
         setAlerts(alertsData);
         setAgents(agentsData);
         setStats(statsData);
         setLastSync(Date.now());
-      } catch (err) {
-        console.error("Fetch error:", err);
-      }
-    };
+      } catch(e) { console.error('Fetch error:', e); }
+    }, [dateFilter]);
 
     useEffect(() => {
       fetchData();
-      const interval = setInterval(fetchData, 5000);
-      return () => clearInterval(interval);
-    }, [dateFilter]);
+      const iv = setInterval(fetchData, 15000);
+      return () => clearInterval(iv);
+    }, [fetchData]);
 
+    /* ─ Actions ─ */
     const handleAck = async (id, e) => {
       e.stopPropagation();
-      await fetch(`${API_BASE}/alerts/${id}/acknowledge`, { method: 'POST' });
-      setAlerts(prev => prev.filter(a => a.id !== id));
-      
-      const newExp = new Set(expanded);
-      newExp.delete(id);
-      setExpanded(newExp);
+      await fetch(`${API_BASE}/alerts/${id}/acknowledge`, { method:'POST' });
+      setAlerts(p => p.filter(a => a.id !== id));
+      setExpanded(p => { const n = new Set(p); n.delete(id); return n; });
     };
 
-    const toggleRow = (id) => {
-      const newExp = new Set(expanded);
-      if (newExp.has(id)) newExp.delete(id);
-      else newExp.add(id);
-      setExpanded(newExp);
-    };
+    const toggleRow = id => setExpanded(p => {
+      const n = new Set(p);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
 
-    const filteredAlerts = useMemo(() => {
-      let filtered = alerts;
-      if (sevFilter) filtered = filtered.filter(a => a.severity === sevFilter);
-      if (agentFilter) filtered = filtered.filter(a => a.hostname === agentFilter);
+    /* ─ Derived ─ */
+    const filtered = useMemo(() => {
+      let f = alerts;
+      if (tabFilter === 'unacked')       f = f.filter(a => !a.acknowledged);
+      if (tabFilter === 'high_critical') f = f.filter(a => ['HIGH','CRITICAL'].includes(a.severity));
+      if (sevFilter)   f = f.filter(a => a.severity === sevFilter);
+      if (agentFilter) f = f.filter(a => a.hostname === agentFilter);
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        filtered = filtered.filter(a => 
-          (a.rule_name || '').toLowerCase().includes(q) ||
+        f = f.filter(a =>
+          (a.rule_name   || '').toLowerCase().includes(q) ||
           (a.matched_log || '').toLowerCase().includes(q) ||
-          (a.hostname || '').toLowerCase().includes(q)
+          (a.hostname    || '').toLowerCase().includes(q)
         );
       }
-      return filtered;
-    }, [alerts, sevFilter, agentFilter, searchQuery]);
+      return f;
+    }, [alerts, tabFilter, sevFilter, agentFilter, searchQuery]);
 
-    const activeSevCount = (sev) => alerts.filter(a => a.severity === sev).length;
+    const onlineMachines = agents.filter(a => (Date.now()/1000 - a.last_seen) < 60).length;
+    const unackedCount   = alerts.filter(a => !a.acknowledged).length;
 
     return (
       <div>
-        <header>
-          <h1>SOC Platform</h1>
-          <span className="badge">Production</span>
-          <span className="badge">React View</span>
-          <span className="last-refresh">Last sync: {formatTime(lastSync / 1000)}</span>
-        </header>
+        {/* ── Header ── */}
+        <div className="header">
+          <div className="logo-icon">🖥️</div>
+          <div>
+            <div className="header-title">Lab Monitor</div>
+            <div className="header-subtitle">Staff Dashboard</div>
+          </div>
+          <div className="header-spacer" />
+          {agentFilter && (
+            <span className="active-filter-chip" onClick={() => setAgentFilter(null)}>
+              💻 {agentFilter} &nbsp;×
+            </span>
+          )}
+          <div className="refresh-pill">
+            <div className="live-dot" />
+            {lastSync ? `Updated ${timeAgo(lastSync/1000)}` : 'Loading…'}
+          </div>
+        </div>
 
+        {/* ── Summary Bar ── */}
+        <div className="summary-bar">
+          <div className="sum-item">
+            <div className="sum-icon">🖥️</div>
+            <div>
+              <div className="sum-value">{onlineMachines}</div>
+              <div className="sum-label">Machines Online</div>
+            </div>
+          </div>
+          <div className="sum-sep" />
+          <div className="sum-item">
+            <div className="sum-icon">📋</div>
+            <div>
+              <div className="sum-value">{alerts.length}</div>
+              <div className="sum-label">Alerts Today</div>
+            </div>
+          </div>
+          <div className="sum-sep" />
+          <div className="sum-item">
+            <div className="sum-icon">🔔</div>
+            <div>
+              <div className="sum-value">{unackedCount}</div>
+              <div className="sum-label">Unacknowledged</div>
+            </div>
+          </div>
+          {stats.CRITICAL > 0 && <>
+            <div className="sum-sep" />
+            <div className="sum-item">
+              <div className="sum-icon">🔴</div>
+              <div>
+                <div className="sum-value" style={{color:'var(--critical)'}}>{stats.CRITICAL}</div>
+                <div className="sum-label">Critical — Act Now</div>
+              </div>
+            </div>
+          </>}
+        </div>
+
+        {/* ── Main ── */}
         <main>
-          <div className="stats">
-            {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(sev => (
-              <div key={sev} className={`stat-card ${sev}`} onClick={() => setSevFilter(sevFilter === sev ? null : sev)}>
-                <div className="label">{sev.charAt(0).toUpperCase() + sev.slice(1)}</div>
-                <div className="value">{dateFilter ? activeSevCount(sev) : (stats[sev] || 0)}</div>
-              </div>
-            ))}
-          </div>
+          <div className="col-left">
+            {/* Stat Cards */}
+            <div className="stat-grid">
+              {[
+                { sev:'CRITICAL', label:'Critical', desc:'Immediate action' },
+                { sev:'HIGH',     label:'High',     desc:'Review soon'      },
+                { sev:'MEDIUM',   label:'Medium',   desc:'Monitor closely'  },
+                { sev:'LOW',      label:'Low',       desc:'Informational'    },
+              ].map(({ sev, label, desc }) => {
+                const count = dateFilter
+                  ? alerts.filter(a => a.severity === sev).length
+                  : (stats[sev] || 0);
+                const active = sevFilter === sev;
+                return (
+                  <div
+                    key={sev}
+                    className={`stat-card ${sev}${active ? ' active-filter' : ''}`}
+                    onClick={() => setSevFilter(active ? null : sev)}
+                    title={active ? 'Click to clear filter' : `Click to filter by ${label}`}
+                  >
+                    <div className="stat-label" style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      {label}
+                      {active && <span style={{fontSize:10,background:'rgba(255,255,255,.12)',padding:'1px 6px',borderRadius:4}}>filtered</span>}
+                    </div>
+                    <div className="stat-value">{count}</div>
+                    <div className="stat-desc">{desc}</div>
+                  </div>
+                );
+              })}
+            </div>
 
-          <div className="toolbar">
-            <button className={`filter-btn ${sevFilter === null ? 'active' : ''}`} onClick={() => setSevFilter(null)}>All Alerts</button>
-            <button className={`filter-btn ${sevFilter === 'CRITICAL' ? 'active' : ''}`} onClick={() => setSevFilter('CRITICAL')}>Critical</button>
-            <button className={`filter-btn ${sevFilter === 'HIGH' ? 'active' : ''}`} onClick={() => setSevFilter('HIGH')}>High</button>
-            <button className={`filter-btn ${sevFilter === 'MEDIUM' ? 'active' : ''}`} onClick={() => setSevFilter('MEDIUM')}>Medium</button>
-            <button className={`filter-btn ${sevFilter === 'LOW' ? 'active' : ''}`} onClick={() => setSevFilter('LOW')}>Low</button>
-            
-            <div style={{ flex: 1 }}></div>
-            
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '4px' }}>Date:</label>
-            <input type="date" className="input-box date-input" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
-            
-            <input type="text" className="input-box search-input" placeholder="Search alerts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            
-            {agentFilter && (
-              <span className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px 12px', marginLeft: '8px' }} onClick={() => setAgentFilter(null)}>
-                {agentFilter} <span style={{ color: 'var(--text-muted)' }}>×</span>
-              </span>
-            )}
-          </div>
-
-          <div className="panels">
-            <div className="panel">
-              <div className="panel-header">
-                <span>Alert Feed</span>
-                <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '12px' }}>{filteredAlerts.length} Records</span>
+            {/* Toolbar */}
+            <div className="toolbar">
+              <div className="tab-group">
+                <button className={`tab-btn ${tabFilter==='all'?'active':''}`}           onClick={()=>setTabFilter('all')}>All</button>
+                <button className={`tab-btn ${tabFilter==='unacked'?'active':''}`}        onClick={()=>setTabFilter('unacked')}>Unacknowledged</button>
+                <button className={`tab-btn ${tabFilter==='high_critical'?'active':''}`} onClick={()=>setTabFilter('high_critical')}>⚠️ High &amp; Critical</button>
               </div>
-              <div className="panel-body">
+              <div className="toolbar-spacer" />
+              <input type="date" className="date-input" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} title="Filter by date" />
+              <input type="text" className="search-input" placeholder="🔍  Search alerts…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} />
+            </div>
+
+            {/* Alert Table */}
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">🚨 Alert Feed</span>
+                <span className="card-count">{filtered.length} alert{filtered.length!==1?'s':''}</span>
+              </div>
+              <div className="alert-list">
                 <table>
                   <thead>
                     <tr>
                       <th>Time</th>
                       <th>Severity</th>
                       <th>Source</th>
-                      <th>Rule</th>
-                      <th>Agent</th>
-                      <th></th>
+                      <th>What Happened</th>
+                      <th>Machine</th>
+                      <th>Action</th>
+                      <th style={{width:28}}></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAlerts.length === 0 ? (
+                    {filtered.length === 0 ? (
                       <tr>
-                        <td colSpan="6">
-                          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '32px', marginBottom: '12px', color: 'var(--border)' }}>📋</div>
-                            <h3 style={{ color: 'var(--text)', fontWeight: 500, marginBottom: '8px' }}>
-                              {dateFilter ? "No logs found for this date." : "No events found."}
-                            </h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                              {dateFilter ? `There is no recorded activity or alerts on ${dateFilter}.` : "Your environment is fully secure."}
-                            </p>
+                        <td colSpan="7">
+                          <div className="empty-state">
+                            <div className="empty-icon">✅</div>
+                            <div className="empty-title">{dateFilter ? 'No alerts on this date' : 'Nothing to show'}</div>
+                            <div className="empty-desc">
+                              {dateFilter ? `No activity was flagged on ${dateFilter}.` : 'No alerts match the current filter.'}
+                            </div>
                           </div>
                         </td>
                       </tr>
                     ) : (
-                      filteredAlerts.map(a => (
-                        <React.Fragment key={a.id}>
-                          <tr className="alert-row" onClick={() => toggleRow(a.id)}>
-                            <td><span style={{color: 'var(--text-muted)'}}>{formatTime(a.timestamp)}</span></td>
-                            <td><span className={`sev ${a.severity}`}>{a.severity}</span></td>
-                            <td><span className="src-badge">{getSourcePrefix(a.matched_log)}</span></td>
-                            <td>{a.rule_name}</td>
-                            <td>
-                              <span className="agent-name" onClick={(e) => { e.stopPropagation(); setAgentFilter(a.hostname); }}>
-                                {a.hostname}
-                              </span>
-                            </td>
-                            <td style={{textAlign: 'right'}}>
-                              <button className="ack-btn" onClick={(e) => handleAck(a.id, e)}>Dismiss</button>
-                            </td>
-                          </tr>
-                          
-                          {expanded.has(a.id) && (
-                            <tr className="detail-row">
-                              <td colSpan="6">
-                                <div className="detail-box">
-                                  <div className="detail-section">
-                                    <h4>Alert Details</h4>
-                                    <div className="detail-field"><span className="dk">Rule</span><span className="dv">{a.rule_name}</span></div>
-                                    <div className="detail-field"><span className="dk">ID</span><span className="dv">#{a.id}</span></div>
-                                    <div className="detail-field"><span className="dk">Severity</span><span className="dv">{a.severity}</span></div>
-                                    <div className="detail-field"><span className="dk">Time</span><span className="dv">{formatFullTime(a.timestamp)}</span></div>
-                                  </div>
-                                  <div className="detail-section">
-                                    <h4>Host Info</h4>
-                                    <div className="detail-field"><span className="dk">Hostname</span><span className="dv">{a.hostname}</span></div>
-                                    <div className="detail-field"><span className="dk">Agent</span><span className="dv">{a.agent_id}</span></div>
-                                  </div>
-                                  <div className="raw-log" dangerouslySetInnerHTML={syntaxHighlightLog(a.matched_log)}></div>
-                                </div>
+                      filtered.map(a => {
+                        const src = detectSource(a.matched_log, a.rule_name);
+                        return (
+                          <React.Fragment key={a.id}>
+                            <tr className="alert-row" onClick={() => toggleRow(a.id)}>
+                              <td style={{color:'var(--text-3)',whiteSpace:'nowrap',fontSize:12}}>{fmtFull(a.timestamp)}</td>
+                              <td><span className={`sev-badge ${a.severity}`}>{a.severity}</span></td>
+                              <td><span className="src-badge">{src.icon} {src.label}</span></td>
+                              <td style={{fontWeight:500}}>{humaniseRule(a.rule_name)}</td>
+                              <td>
+                                <span className="hostname-link" onClick={e=>{e.stopPropagation();setAgentFilter(a.hostname);}} title="Filter by this machine">
+                                  {a.hostname}
+                                </span>
+                              </td>
+                              <td>
+                                <button className="ack-btn" onClick={e=>handleAck(a.id,e)} title="Mark as acknowledged">
+                                  ✓ Acknowledge
+                                </button>
+                              </td>
+                              <td style={{textAlign:'center'}}>
+                                <span className={`expand-chevron ${expanded.has(a.id)?'open':''}`}>▾</span>
                               </td>
                             </tr>
-                          )}
-                        </React.Fragment>
-                      ))
+                            {expanded.has(a.id) && (
+                              <tr className="detail-row">
+                                <td colSpan="7"><AlertDetail alert={a} /></td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
+          </div>
 
-            <div className="panel">
-              <div className="panel-header">Agents</div>
-              <div className="panel-body">
+          {/* ── Right Column ── */}
+          <div className="col-right">
+            {/* Agent Cards */}
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">🖥️ Lab Machines</span>
+                <span className="card-count">{agents.length} total</span>
+              </div>
+              <div className="agents-grid">
                 {agents.length === 0 ? (
-                  <div className="empty">No agents online</div>
+                  <div style={{padding:24,textAlign:'center',color:'var(--text-3)',fontSize:13}}>No machines detected yet.</div>
                 ) : (
                   agents.map(a => {
-                    const online = (Date.now()/1000 - a.last_seen) < 30;
-                    const isActive = agentFilter === a.hostname;
+                    const online = (Date.now()/1000 - a.last_seen) < 60;
+                    const sel    = agentFilter === a.hostname;
                     return (
-                      <div key={a.agent_id} className="agent-item" style={{ borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent', background: isActive ? 'var(--bg-hover)' : 'transparent' }} onClick={() => setAgentFilter(a.hostname)}>
-                        <div className="agent-row">
-                          <div className={`agent-dot ${online ? '' : 'offline'}`}></div>
-                          <div className="agent-name" style={{ color: isActive ? 'var(--text)' : '' }}>{a.hostname}</div>
-                          <div className="agent-time">{timeAgo(a.last_seen)}</div>
+                      <div
+                        key={a.agent_id}
+                        className={`agent-card${sel?' selected':''}`}
+                        onClick={() => setAgentFilter(sel ? null : a.hostname)}
+                        title={sel ? 'Click to clear filter' : 'Click to filter by this machine'}
+                      >
+                        <div className="agent-card-top">
+                          <div className={`status-dot ${online?'online':'offline'}`} />
+                          <div className="agent-hostname">{a.hostname}</div>
+                          <span className={`status-label-badge ${online?'online':'offline'}`}>
+                            {online ? 'Online' : 'Offline'}
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{a.agent_id}</span>
-                          {isActive && <span style={{ fontSize: '11px', color: 'var(--text)' }}>✓ Selected</span>}
-                        </div>
+                        <div className="agent-last-seen">Last seen {timeAgo(a.last_seen)}</div>
                       </div>
                     );
                   })
                 )}
               </div>
             </div>
+
+            {/* What's being monitored */}
+            <div className="card" style={{padding:'16px 18px'}}>
+              <div className="card-title" style={{marginBottom:12}}>📡 What We Monitor</div>
+              {[
+                { icon:'🌐', label:'Browser Activity',    desc:'Sites visited, searches' },
+                { icon:'🚀', label:'App Launches',        desc:'Programs opened or closed' },
+                { icon:'🖥️', label:'Active Window',       desc:'Which app is in use' },
+                { icon:'💬', label:'Terminal Commands',   desc:'PowerShell commands typed' },
+                { icon:'🔌', label:'USB Devices',         desc:'Drives plugged in/out' },
+                { icon:'🛡️', label:'System Events',       desc:'Logins, errors, security' },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <span style={{fontSize:16,width:22,textAlign:'center'}}>{icon}</span>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{label}</div>
+                    <div style={{fontSize:11,color:'var(--text-3)'}}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Severity Guide */}
+            <div className="card" style={{padding:'16px 18px'}}>
+              <div className="card-title" style={{marginBottom:12}}>📖 Severity Guide</div>
+              {[
+                { sev:'CRITICAL', txt:'Needs immediate attention' },
+                { sev:'HIGH',     txt:'Should be reviewed soon'   },
+                { sev:'MEDIUM',   txt:'Worth keeping an eye on'   },
+                { sev:'LOW',      txt:'Informational only'        },
+              ].map(({ sev, txt }) => (
+                <div key={sev} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <span className={`sev-badge ${sev}`} style={{minWidth:72}}>{sev}</span>
+                  <span style={{fontSize:11,color:'var(--text-2)'}}>{txt}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </main>
+
+        {/* ── Toasts ── */}
+        <div className="toast-wrapper">
+          {toasts.map(t => (
+            <Toast key={t._tid} t={t} onClose={() => setToasts(p => p.filter(x => x._tid !== t._tid))} />
+          ))}
+        </div>
       </div>
     );
   }
 
-  const domContainer = document.getElementById('root');
-  const root = ReactDOM.createRoot(domContainer);
-  root.render(<App />);
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
