@@ -204,7 +204,7 @@
     "name": "🎮 Gaming Site Visited",
     "severity": "HIGH",
     "description": "Student visited a gaming website during lab",
-    "pattern": "(?i)(game|play|steam|roblox|minecraft)",
+    "pattern": "(?i)^(?!.*(?:hackthebox|tryhackme|picoctf|portswigger|overthewire)).*(game|play|steam|roblox|minecraft)",
     "source_filter": "BROWSER"
   },
   {
@@ -228,7 +228,7 @@
     "name": "📋 Cheating Site Visited",
     "severity": "CRITICAL",
     "description": "Student visited homework/answer copying site",
-    "pattern": "(?i)(cheat|homework|answers|quizlet|brainly)",
+    "pattern": "(?i)^(?!.*(?:hackthebox|tryhackme|picoctf|portswigger|overthewire)).*(cheat|homework|answers|quizlet|brainly)",
     "source_filter": "BROWSER"
   },
   {
@@ -261,7 +261,7 @@
     "severity": "CRITICAL",
     "description": "CRITICAL: USB inserted during exam — possible cheating",
     "pattern": "LAB_USB_INSERT",
-    "source_filter": "LAB_USB"
+    "source_filter": null
   },
   {
     "id": "R034",
@@ -269,7 +269,7 @@
     "severity": "HIGH",
     "description": "USB removed — check if files were copied",
     "pattern": "LAB_USB_REMOVE",
-    "source_filter": "LAB_USB"
+    "source_filter": null
   },
   {
     "id": "R035",
@@ -309,6 +309,30 @@
     "severity": "CRITICAL",
     "description": "Student took a screenshot — possible cheating",
     "pattern": "SCREENSHOT_TAKEN",
+    "source_filter": null
+  },
+  {
+    "id": "R040",
+    "name": "Security Training Platform Used",
+    "severity": "MEDIUM",
+    "description": "User visited an approved cybersecurity training platform",
+    "pattern": "(?i)(TRAINING_PLATFORM=SECURITY_LAB|hackthebox|tryhackme|picoctf|portswigger|overthewire)",
+    "source_filter": "BROWSER"
+  },
+  {
+    "id": "R041",
+    "name": "Application Analysis Event",
+    "severity": "LOW",
+    "description": "Application activity was categorized for analysis",
+    "pattern": "APPLICATION_ANALYSIS|APP_ANALYSIS",
+    "source_filter": null
+  },
+  {
+    "id": "R042",
+    "name": "Off-Task Application Opened",
+    "severity": "MEDIUM",
+    "description": "Communication, gaming, or remote-access application detected",
+    "pattern": "OFFTASK_APPLICATION",
     "source_filter": null
   }
 ]

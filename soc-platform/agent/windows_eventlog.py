@@ -31,6 +31,7 @@ class WindowsEventLogMonitor:
             raise RuntimeError("WindowsEventLogMonitor only works on Windows")
         
         self.log_names = log_names or ["System", "Security", "Application"]
+        self.enabled_logs = []
         self.last_record_numbers = {}
         self._initialize_bookmarks()
     
@@ -49,6 +50,7 @@ class WindowsEventLogMonitor:
                     self.last_record_numbers[log_name] = 0
                 
                 win32evtlog.CloseEventLog(hand)
+                self.enabled_logs.append(log_name)
             except Exception as e:
                 print(f"[WindowsEventLog] Failed to initialize {log_name}: {e}")
                 self.last_record_numbers[log_name] = 0
@@ -62,7 +64,7 @@ class WindowsEventLogMonitor:
         """
         all_events = []
         
-        for log_name in self.log_names:
+        for log_name in self.enabled_logs:
             try:
                 events = self._read_log(log_name)
                 all_events.extend(events)

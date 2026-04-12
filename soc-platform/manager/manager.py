@@ -15,7 +15,7 @@ import time
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from shared.logger import get_logger
 logger = get_logger("Manager")
-from shared.config import MANAGER_HOST, MANAGER_PORT, MANAGER_BUFFER_SIZE, MANAGER_PORT, MANAGER_BUFFER_SIZE
+from shared.config import MANAGER_HOST, MANAGER_PORT, MANAGER_BUFFER_SIZE
 from shared.models  import LogEvent
 from rule_engine.engine import RuleEngine
 from database.db import init_db, insert_log, insert_alert, upsert_agent

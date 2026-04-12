@@ -1,15 +1,21 @@
 import os
 import sys
-from fastapi import FastAPI, Request, Query
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from database.db import get_all_agents, get_alerts, get_alert_counts, acknowledge_alert, get_logs
+from database.db import init_db, get_all_agents, get_alerts, get_alert_counts, acknowledge_alert, get_logs
 from shared.config import API_HOST, API_PORT
 
-app = FastAPI(title="SOC Platform API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(title="SOC Platform API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,4 +59,4 @@ def api_reload_rules():
     return {"status": "success", "message": "Reload signal sent (mocked)"}
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host=API_HOST, port=API_PORT, reload=False)
+    uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)

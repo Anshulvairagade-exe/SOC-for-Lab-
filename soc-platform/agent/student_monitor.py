@@ -187,7 +187,7 @@ class BrowserMonitor:
             conn.close()
             return row[0] if row and row[0] else 0
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             return 0
 
     def _extract_search_query(self, url: str) -> str | None:
@@ -217,7 +217,7 @@ class BrowserMonitor:
                     if param in params:
                         return params[param][0]
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             pass
         return None
 
@@ -388,7 +388,7 @@ class ActiveWindowMonitor:
                 print("[WindowMonitor] xdotool found ✓")
                 return True
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             pass
         print("[WindowMonitor] xdotool not found — install with: sudo apt install xdotool")
         return False
@@ -405,7 +405,7 @@ class ActiveWindowMonitor:
             )
             return result.stdout.strip()
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             return ""
 
     def check(self) -> list[str]:
@@ -467,10 +467,10 @@ class DNSMonitor:
                         hostname = socket.gethostbyaddr(ip)[0]
                         domains.add(hostname.lower())
                     except Exception as e:
-                print(f"Error: {e}")
+                        print(f"Error: {e}")
                         pass
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             pass
         return domains
 
@@ -552,7 +552,7 @@ class LabUSBMonitor:
                         "manufacturer": mfr, "name": pname, "serial": serial
                     }
                 except Exception as e:
-                print(f"Error: {e}")
+                    print(f"Error: {e}")
                     pass
         return devices
 
@@ -689,7 +689,7 @@ class ShellCommandMonitor:
         try:
             self._soc_log_size = os.path.getsize(soc_log)
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             self._soc_log_size = 0
 
     def _init_history_files(self):
@@ -709,7 +709,7 @@ class ShellCommandMonitor:
                 if proc.info['name'] in self.SHELL_NAMES:
                     self._seen_procs.add(proc.info['pid'])
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             pass
 
     def _read_new_from_soc_log(self) -> list[str]:
@@ -728,7 +728,7 @@ class ShellCommandMonitor:
             text = new_bytes.decode("utf-8", errors="replace")
             lines = [l.strip() for l in text.splitlines() if l.strip()]
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             pass
         return lines
 
@@ -745,7 +745,7 @@ class ShellCommandMonitor:
             text = raw.decode("utf-8", errors="replace")
             return [l.strip() for l in text.splitlines() if l.strip()]
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             return []
 
     def _clean_zsh_line(self, line: str) -> str:
@@ -919,7 +919,7 @@ class ScreenshotMonitor:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
         except Exception as e:
-                print(f"Error: {e}")
+            print(f"Error: {e}")
             pass
         return events
     
@@ -951,7 +951,7 @@ class ScreenshotMonitor:
                             self._known_screenshots.add(fpath)
                             continue
                     except Exception as e:
-                print(f"Error: {e}")
+                        print(f"Error: {e}")
                         continue
                     
                     # New screenshot detected!

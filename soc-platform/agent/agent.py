@@ -1,16 +1,22 @@
 import os
 import sys
 import time
-import socket
 import json
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+CURRENT_DIR = os.path.dirname(__file__)
+PROJECT_ROOT = os.path.join(CURRENT_DIR, "..")
+sys.path.append(CURRENT_DIR)
+sys.path.append(PROJECT_ROOT)
 from shared.logger import get_logger
 logger = get_logger("Agent")
 from shared.config import MANAGER_HOST, MANAGER_PORT, AGENT_ID, AGENT_HOSTNAME, AGENT_SEND_INTERVAL
 from shared.models import LogEvent
 from shared.os_abstraction import get_os
 from shared.security import SecureSocket
+import browser_monitor
+import student_monitor
+import windows_eventlog
+import windows_monitors
 
 class Agent:
     def __init__(self):
@@ -32,9 +38,6 @@ class Agent:
     def _init_monitors(self):
         if self.os_helper.is_windows:
             try:
-                import windows_eventlog
-                import windows_monitors
-                import browser_monitor
                 self.monitors.append(("WINDOWS_EVENT", windows_eventlog.WindowsEventLogMonitor(["System", "Security", "Application"])))
                 self.formatters["WINDOWS_EVENT"] = windows_eventlog.format_for_soc
                 
@@ -60,7 +63,6 @@ class Agent:
                 logger.info(f"Error initializing Windows monitors: {e}")
         else:
             try:
-                import student_monitor
                 self.monitors.append(("Student", student_monitor.StudentActivityMonitor()))
             except Exception as e:
                 logger.info(f"Error initializing Student monitor: {e}")

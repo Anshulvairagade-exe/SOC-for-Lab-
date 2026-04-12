@@ -5,9 +5,11 @@
 
 # === Manager Server ===
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 MANAGER_HOST = os.getenv("MANAGER_HOST", "0.0.0.0")           # Listen on all interfaces
 MANAGER_PORT = int(os.getenv("MANAGER_PORT", "9000"))         # Port agents connect to
@@ -19,7 +21,7 @@ API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # --- Database ---
-DB_PATH = os.getenv("DB_PATH", "soc_platform.db")        # SQLite file path
+DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "soc_platform.db"))        # SQLite file path
 
 # --- Agent ---
 AGENT_SEND_INTERVAL = int(os.getenv("AGENT_SEND_INTERVAL", "2"))            # Seconds between log batches
