@@ -1,338 +1,90 @@
 [
-  {
-    "id": "R001",
-    "name": "SSH Failed Login",
-    "severity": "MEDIUM",
-    "description": "Failed SSH authentication",
-    "pattern": "Failed password|authentication failure|Invalid user",
-    "source_filter": null
-  },
-  {
-    "id": "R002",
-    "name": "SSH Brute Force",
-    "severity": "HIGH",
-    "description": "Multiple failed SSH attempts",
-    "pattern": "Failed password.*ssh",
-    "source_filter": null
-  },
-  {
-    "id": "R003",
-    "name": "Root Login Attempt",
-    "severity": "HIGH",
-    "description": "Login attempt as root",
-    "pattern": "Failed password for root|Invalid user root",
-    "source_filter": null
-  },
-  {
-    "id": "R004",
-    "name": "Sudo Privilege Escalation",
-    "severity": "MEDIUM",
-    "description": "User ran sudo",
-    "pattern": "sudo:.*COMMAND",
-    "source_filter": null
-  },
-  {
-    "id": "R005",
-    "name": "New User Created",
-    "severity": "HIGH",
-    "description": "New user account added",
-    "pattern": "useradd|new user|adduser",
-    "source_filter": null
-  },
-  {
-    "id": "R006",
-    "name": "File Integrity Violation",
-    "severity": "CRITICAL",
-    "description": "Critical system file modified",
-    "pattern": "FIM ALERT",
-    "source_filter": "FIM"
-  },
-  {
-    "id": "R007",
-    "name": "System Reboot",
-    "severity": "LOW",
-    "description": "System rebooted or shut down",
-    "pattern": "^(?!.*(Browser=|URL=)).*(reboot|shutdown|Stopping)",
-    "source_filter": null
-  },
-  {
-    "id": "R008",
-    "name": "Disk Full Warning",
-    "severity": "HIGH",
-    "description": "Disk space critically low",
-    "pattern": "No space left on device|disk full",
-    "source_filter": null
-  },
-  {
-    "id": "R009",
-    "name": "USB Device Connected",
-    "severity": "HIGH",
-    "description": "USB device plugged in",
-    "pattern": "USB_CONNECT",
-    "source_filter": "USB"
-  },
-  {
-    "id": "R010",
-    "name": "External Storage Mounted",
-    "severity": "CRITICAL",
-    "description": "USB drive mounted — possible data theft",
-    "pattern": "STORAGE_MOUNTED",
-    "source_filter": "USB"
-  },
-  {
-    "id": "R011",
-    "name": "USB Device Disconnected",
-    "severity": "MEDIUM",
-    "description": "USB device removed",
-    "pattern": "USB_DISCONNECT",
-    "source_filter": "USB"
-  },
-  {
-    "id": "R012",
-    "name": "Suspicious Process Detected",
-    "severity": "CRITICAL",
-    "description": "Known attack tool launched",
-    "pattern": "SUSPICIOUS_PROCESS",
-    "source_filter": "PROCESS"
-  },
-  {
-    "id": "R013",
-    "name": "New Root Process",
-    "severity": "HIGH",
-    "description": "Unexpected root process",
-    "pattern": "NEW_ROOT_PROCESS",
-    "source_filter": "PROCESS"
-  },
-  {
-    "id": "R014",
-    "name": "Suspicious Outbound Connection",
-    "severity": "CRITICAL",
-    "description": "Outbound to known attack/C2 port",
-    "pattern": "SUSPICIOUS_CONNECTION",
-    "source_filter": "NETWORK"
-  },
-  {
-    "id": "R015",
-    "name": "Port Scan Detected",
-    "severity": "HIGH",
-    "description": "Possible port scan",
-    "pattern": "PORT_SCAN_DETECTED",
-    "source_filter": "NETWORK"
-  },
-  {
-    "id": "R016",
-    "name": "New Listening Port",
-    "severity": "HIGH",
-    "description": "New service listening — possible backdoor",
-    "pattern": "NEW_LISTENING_PORT",
-    "source_filter": "NETWORK"
-  },
-  {
-    "id": "R017",
-    "name": "User Login",
-    "severity": "LOW",
-    "description": "User logged in",
-    "pattern": "USER_LOGIN",
-    "source_filter": "LOGIN"
-  },
-  {
-    "id": "R018",
-    "name": "User Logout",
-    "severity": "LOW",
-    "description": "User session ended",
-    "pattern": "USER_LOGOUT",
-    "source_filter": "LOGIN"
-  },
-  {
-    "id": "R019",
-    "name": "High CPU Usage",
-    "severity": "HIGH",
-    "description": "CPU above 90% — possible miner or DoS",
-    "pattern": "HIGH_CPU",
-    "source_filter": "RESOURCE"
-  },
-  {
-    "id": "R020",
-    "name": "High RAM Usage",
-    "severity": "MEDIUM",
-    "description": "Memory critically low",
-    "pattern": "HIGH_RAM",
-    "source_filter": "RESOURCE"
-  },
-  {
-    "id": "R021",
-    "name": "Disk Nearly Full",
-    "severity": "HIGH",
-    "description": "Disk above 90%",
-    "pattern": "HIGH_DISK",
-    "source_filter": "RESOURCE"
-  },
-  {
-    "id": "R022",
-    "name": "New Cron Job",
-    "severity": "HIGH",
-    "description": "New scheduled task — possible persistence",
-    "pattern": "NEW_CRON_JOB",
-    "source_filter": "CRON"
-  },
-  {
-    "id": "R023",
-    "name": "Cron Job Modified",
-    "severity": "HIGH",
-    "description": "Scheduled task modified",
-    "pattern": "CRON_MODIFIED",
-    "source_filter": "CRON"
-  },
-  {
-    "id": "R024",
-    "name": "Sudoers Modified",
-    "severity": "CRITICAL",
-    "description": "CRITICAL: /etc/sudoers changed",
-    "pattern": "SUDOERS_MODIFIED",
-    "source_filter": "PRIVESC"
-  },
-  {
-    "id": "R025",
-    "name": "New SUID Binary",
-    "severity": "CRITICAL",
-    "description": "New SUID binary planted",
-    "pattern": "NEW_SUID_BINARY",
-    "source_filter": "PRIVESC"
-  },
-  {
-    "id": "R026",
-    "name": "🎮 Gaming Site Visited",
-    "severity": "HIGH",
-    "description": "Student visited a gaming website during lab",
-    "pattern": "(?i)^(?!.*(?:hackthebox|tryhackme|picoctf|portswigger|overthewire)).*(game|play|steam|roblox|minecraft)",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R027",
-    "name": "📱 Social Media Visited",
-    "severity": "HIGH",
-    "description": "Student visited social media during lab",
-    "pattern": "(?i)(facebook|instagram|twitter|tiktok|social)",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R028",
-    "name": "🎬 Streaming Site Visited",
-    "severity": "HIGH",
-    "description": "Student watching videos during lab/exam",
-    "pattern": "(?i)(netflix|hulu|disney|primevideo)",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R029",
-    "name": "📋 Cheating Site Visited",
-    "severity": "CRITICAL",
-    "description": "Student visited homework/answer copying site",
-    "pattern": "(?i)^(?!.*(?:hackthebox|tryhackme|picoctf|portswigger|overthewire)).*(cheat|homework|answers|quizlet|brainly)",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R030",
-    "name": "🌐 Blocked Site Visited",
-    "severity": "HIGH",
-    "description": "Student visited a blocked/restricted site",
-    "pattern": "BROWSER_BLOCKED",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R031",
-    "name": "🌐 Blocked Site (Network)",
-    "severity": "HIGH",
-    "description": "Network connection to blocked site detected",
-    "pattern": "DNS_BLOCKED",
-    "source_filter": "DNS"
-  },
-  {
-    "id": "R032",
-    "name": "📺 Off-Task Window Active",
-    "severity": "MEDIUM",
-    "description": "Student switched to non-lab application",
-    "pattern": "SUSPICIOUS_WINDOW",
-    "source_filter": "WINDOW"
-  },
-  {
-    "id": "R033",
-    "name": "🚨 EXAM USB VIOLATION",
-    "severity": "CRITICAL",
-    "description": "CRITICAL: USB inserted during exam — possible cheating",
-    "pattern": "LAB_USB_INSERT",
-    "source_filter": null
-  },
-  {
-    "id": "R034",
-    "name": "⚠️ USB Removed After Insert",
-    "severity": "HIGH",
-    "description": "USB removed — check if files were copied",
-    "pattern": "LAB_USB_REMOVE",
-    "source_filter": null
-  },
-  {
-    "id": "R035",
-    "name": "🔍 Student Search Query",
-    "severity": "MEDIUM",
-    "description": "Student performed a web search — query captured",
-    "pattern": "BROWSER_SEARCH",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R036",
-    "name": "💻 Terminal Opened",
-    "severity": "HIGH",
-    "description": "Student opened a terminal/shell during exam",
-    "pattern": "TERMINAL_OPENED",
-    "source_filter": "PROCESS"
-  },
-  {
-    "id": "R037",
-    "name": "🌍 URL Visited",
-    "severity": "LOW",
-    "description": "Student visited a webpage — URL captured",
-    "pattern": "Browser=",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R038",
-    "name": "⌨️ Shell Command Typed",
-    "severity": "MEDIUM",
-    "description": "Student typed a command in terminal",
-    "pattern": "SHELL_COMMAND",
-    "source_filter": "SHELL"
-  },
-  {
-    "id": "R039",
-    "name": "📸 Screenshot Taken",
-    "severity": "CRITICAL",
-    "description": "Student took a screenshot — possible cheating",
-    "pattern": "SCREENSHOT_TAKEN",
-    "source_filter": null
-  },
-  {
-    "id": "R040",
-    "name": "Security Training Platform Used",
-    "severity": "MEDIUM",
-    "description": "User visited an approved cybersecurity training platform",
-    "pattern": "(?i)(TRAINING_PLATFORM=SECURITY_LAB|hackthebox|tryhackme|picoctf|portswigger|overthewire)",
-    "source_filter": "BROWSER"
-  },
-  {
-    "id": "R041",
-    "name": "Application Analysis Event",
-    "severity": "LOW",
-    "description": "Application activity was categorized for analysis",
-    "pattern": "APPLICATION_ANALYSIS|APP_ANALYSIS",
-    "source_filter": null
-  },
-  {
-    "id": "R042",
-    "name": "Off-Task Application Opened",
-    "severity": "MEDIUM",
-    "description": "Communication, gaming, or remote-access application detected",
-    "pattern": "OFFTASK_APPLICATION",
-    "source_filter": null
-  }
+  {"id":"USB-001","name":"Unauthorized USB/pendrive attached","severity":"CRITICAL","description":"Any USB storage device plugged in without prior approval from lab administrator.","pattern":"USB_ATTACH|USB_MOUNT","source_filter":"USB","action":"Block + Alert Admin","escalate":true},
+  {"id":"USB-002","name":"Multiple USB insertions in short window","severity":"CRITICAL","description":"More than 2 USB devices plugged/unplugged within 10 minutes on the same machine.","pattern":"USB_RAPID|USB_MULTI","source_filter":"USB","action":"Block + Alert Admin","escalate":true},
+  {"id":"USB-003","name":"Data copied to USB drive","severity":"CRITICAL","description":"File copy or write operation detected to USB storage device.","pattern":"USB_WRITE|USB_COPY","source_filter":"USB","action":"Block + Alert Admin","escalate":true},
+  {"id":"USB-004","name":"Executable file on USB attempted to run","severity":"CRITICAL","description":".exe, .bat, .sh, .py launched directly from a USB mount point.","pattern":"USB_EXEC|USB_RUN","source_filter":"USB","action":"Block + Alert Admin","escalate":true},
+  {"id":"USB-005","name":"Mobile phone connected as MTP/storage","severity":"HIGH","description":"Android or iOS device mounted as file transfer storage.","pattern":"MTP_CONNECT|ANDROID_MOUNT|IOS_MOUNT","source_filter":"USB","action":"Alert Admin","escalate":false},
+  {"id":"USB-006","name":"CD/DVD drive accessed","severity":"MEDIUM","description":"Optical disc drive opened or read during class session.","pattern":"CDROM_ACCESS|DVD_READ","source_filter":"HARDWARE","action":"Log + Warn","escalate":false},
+  {"id":"USB-007","name":"USB mouse/keyboard (non-whitelisted)","severity":"HIGH","description":"Non-inventory USB HID device detected — may be a rubber ducky or keylogger.","pattern":"USB_HID_UNKNOWN|USB_KEYBOARD|USB_MOUSE","source_filter":"USB","action":"Alert Admin","escalate":false},
+  {"id":"USB-008","name":"USB device removed without ejection","severity":"LOW","description":"Unsafe removal detected; may indicate hurried data exfiltration.","pattern":"USB_UNSAFE_REMOVE|USB_FORCE_EJECT","source_filter":"USB","action":"Log","escalate":false},
+
+  {"id":"WEB-001","name":"Online gaming site accessed","severity":"CRITICAL","description":"Access to Steam, Miniclip, Friv, Poki, Coolmathgames, Y8, or similar gaming portals.","pattern":"domain:(steam|miniclip|friv|poki|coolmathgames|y8)","source_filter":"BROWSER","action":"Block + Alert Admin","escalate":true},
+  {"id":"WEB-002","name":"Browser-based game detected in active tab","severity":"CRITICAL","description":"Canvas-heavy WebGL game loop detected in browser tab during class hours.","pattern":"GAME_CANVAS|WEBGL_GAME","source_filter":"BROWSER","action":"Block + Alert Admin","escalate":true},
+  {"id":"WEB-003","name":"Game download attempted","severity":"CRITICAL","description":"Game launcher installer or .exe download from Epic, Origin, Battle.net.","pattern":"domain:(epicgames|origin|battlenet)|file:(.*(game|setup).*\\.exe)","source_filter":"DOWNLOAD","action":"Block + Alert Admin","escalate":true},
+  {"id":"WEB-004","name":"Video streaming site accessed (non-educational)","severity":"HIGH","description":"YouTube (non-edu), Netflix, Prime Video, Hotstar accessed during class.","pattern":"domain:(youtube|netflix|primevideo|hotstar)","source_filter":"BROWSER","action":"Block + Alert","escalate":false},
+  {"id":"WEB-005","name":"Social media accessed","severity":"HIGH","description":"Social networking platforms accessed during active class session.","pattern":"domain:(facebook|instagram|tiktok|twitter|x.com)","source_filter":"BROWSER","action":"Block + Alert","escalate":false},
+  {"id":"WEB-006","name":"Gambling / betting website accessed","severity":"CRITICAL","description":"Any domain flagged as gambling, fantasy sports betting, or lottery.","pattern":"domain:.*gambl.*|domain:.*bet.*|GAMBLING_SITE","source_filter":"BROWSER","action":"Block + Alert Admin","escalate":true},
+  {"id":"WEB-007","name":"Adult content website attempted","severity":"CRITICAL","description":"Request to adult/NSFW domain detected by DNS/proxy filter.","pattern":"ADULT_CONTENT|NSFW_SITE","source_filter":"BROWSER","action":"Block + Alert Admin + Escalate","escalate":true},
+  {"id":"WEB-008","name":"Meme / time-waste site accessed","severity":"MEDIUM","description":"Non-educational, entertainment-heavy forums browsed during class.","pattern":"domain:(reddit|9gag)","source_filter":"BROWSER","action":"Log + Warn","escalate":false},
+  {"id":"WEB-009","name":"Music streaming in background","severity":"MEDIUM","description":"Audio streaming service active during class hours.","pattern":"domain:(spotify|gaana|musicapp)","source_filter":"BROWSER","action":"Warn + Log","escalate":false},
+  {"id":"WEB-010","name":"Short video app accessed","severity":"HIGH","description":"Short-form video platforms accessed via web browser.","pattern":"domain:.*reels.*|domain:.*shorts.*","source_filter":"BROWSER","action":"Block + Alert","escalate":false},
+
+  {"id":"SEC-001","name":"Malware / phishing URL visited","severity":"CRITICAL","description":"URL matches threat intelligence feed or Google Safe Browsing blocklist.","pattern":"MALWARE_URL|PHISHING_URL|THREAT_INTEL","source_filter":"BROWSER","action":"Block + Isolate PC + Alert","escalate":true},
+  {"id":"SEC-002","name":"Tor / anonymizer network access attempted","severity":"CRITICAL","description":"Attempt to connect to Tor entry nodes, VPN tunnel, or proxy bypass tools.","pattern":"TOR_CONNECT|VPN_TUNNEL|PROXY_DETECT","source_filter":"NETWORK","action":"Block + Alert Admin","escalate":true},
+  {"id":"SEC-003","name":"Hacking tool download attempted","severity":"LOW","description":"Kali tools, Metasploit, Nmap installers downloaded or attempted.","pattern":"metasploit|kali|nmap|download.*hack.*tool","source_filter":"DOWNLOAD","action":"Block + Alert Admin + Escalate","escalate":true},
+  {"id":"SEC-004","name":"Port scanning tool executed","severity":"LOW","description":"nmap, Angry IP Scanner, or similar network scanner ran on LAN.","pattern":"nmap|ipscan|masscan|PORT_SCAN","source_filter":"NETWORK","action":"Block + Alert Admin","escalate":true},
+  {"id":"SEC-005","name":"VPN client installed or run","severity":"CRITICAL","description":"Commercial or open-source VPN client (NordVPN, OpenVPN, Psiphon) detected running.","pattern":"nordvpn|openvpn|psiphon|vpn.*process","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":true},
+  {"id":"SEC-006","name":"Cryptocurrency mining process detected","severity":"CRITICAL","description":"High CPU + GPU usage matching known mining patterns (xmrig, browser miner).","pattern":"xmrig|mining|crypto.*miner|HIGH_CPU_GPU","source_filter":"PROCESS","action":"Kill Process + Alert","escalate":true},
+  {"id":"SEC-007","name":"Remote desktop tool installed","severity":"CRITICAL","description":"Remote access client installed or connection established to external host.","pattern":"anydesk|teamviewer|chrome.*remote|RDP_TUNNEL","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":true},
+  {"id":"SEC-008","name":"Suspicious script execution","severity":"HIGH","description":"Non-standard scripts executed outside approved list in user profile.","pattern":"script.*exec|powershell.*encoded|\\.bat|\\.vbs|\\.ps1","source_filter":"PROCESS","action":"Alert Admin","escalate":false},
+  {"id":"SEC-009","name":"Password manager or credential harvester pattern","severity":"CRITICAL","description":"Mimikatz-like behavior or bulk credential file access detected.","pattern":"mimikatz|credential.*dump|CRED_HARVEST","source_filter":"PROCESS","action":"Isolate + Alert","escalate":true},
+  {"id":"SEC-010","name":"Unauthorized Wi-Fi hotspot created","severity":"LOW","description":"PC attempted to broadcast a Wi-Fi hotspot, bypassing wired lab network.","pattern":"WIFI_HOTSPOT|HOTSPOT_CREATE|TETHERING","source_filter":"NETWORK","action":"Block + Alert Admin","escalate":true},
+
+  {"id":"STU-001","name":"Student PC idle during active session","severity":"LOW","description":"No mouse/keyboard input for more than 5 minutes during a live class.","pattern":"PC_IDLE|NO_INPUT","source_filter":"DEVICE","action":"Log + Notify Teacher","escalate":false},
+  {"id":"STU-002","name":"Student attempted to lock/log off PC","severity":"MEDIUM","description":"Ctrl+Alt+Del, Windows lock, or logoff triggered outside designated end-of-session.","pattern":"LOCK_ATTEMPT|LOGOFF_ATTEMPT|CTL_ALT_DEL","source_filter":"SYSTEM","action":"Alert Teacher + Log","escalate":false},
+  {"id":"STU-003","name":"Two students sharing one login credential","severity":"HIGH","description":"Same user account logged in from two different machines simultaneously.","pattern":"DUAL_LOGIN|SHARED_ACCOUNT","source_filter":"LOGIN","action":"Alert Admin + Force Logout","escalate":false},
+  {"id":"STU-004","name":"Student accessed teacher's machine directory","severity":"CRITICAL","description":"Network share of teacher PC accessed from a student workstation.","pattern":"TEACHER_SHARE_ACCESS|UNAUTHORIZED_SHARE","source_filter":"NETWORK","action":"Block + Alert Admin","escalate":true},
+  {"id":"STU-005","name":"Copy-paste from external source during exam","severity":"CRITICAL","description":"Large clipboard paste event detected during examination session.","pattern":"LARGE_PASTE|CLIPBOARD_PASTE_EXAM","source_filter":"LAB_EXAM","action":"Flag + Alert Teacher","escalate":true},
+  {"id":"STU-006","name":"Screen capture during exam","severity":"HIGH","description":"Print Screen, Snipping Tool, or screenshot app used during examination.","pattern":"SCREENSHOT|PRINTSCREEN|SNIP_TOOL","source_filter":"PROCESS","action":"Alert Teacher + Log","escalate":false},
+  {"id":"STU-007","name":"Voice/audio playback without headphones policy","severity":"LOW","description":"Speaker output detected in silent lab session (non-headphone audio).","pattern":"SPEAKER_OUTPUT|AUDIO_PLAYBACK","source_filter":"AUDIO","action":"Alert Teacher","escalate":false},
+
+  {"id":"APP-001","name":"Unauthorized software installation attempted","severity":"HIGH","description":"Setup.exe or installer run that is not on the approved software list.","pattern":"setup\\.exe|installer|msi_install","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":false},
+  {"id":"APP-002","name":"Software uninstalled by student","severity":"CRITICAL","description":"Add/Remove Programs or silent uninstall command detected from student account.","pattern":"uninstall|remove_program|UNINSTALL_APP","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":true},
+  {"id":"APP-003","name":"Chat client running","severity":"HIGH","description":"WhatsApp Web, Telegram, Discord active in browser or as installed app during class.","pattern":"whatsapp|telegram|discord|slack","source_filter":"PROCESS","action":"Block + Alert","escalate":false},
+  {"id":"APP-004","name":"Email client accessed for non-academic purpose","severity":"MEDIUM","description":"Personal Gmail, Hotmail accessed and time spent exceeds 5 minutes.","pattern":"gmail|hotmail|email_app","source_filter":"BROWSER","action":"Warn + Log","escalate":false},
+  {"id":"APP-005","name":"Task Manager or Registry Editor opened","severity":"MEDIUM","description":"Attempt to open taskmgr.exe, regedit.exe, or msconfig from student account.","pattern":"taskmgr|regedit|msconfig|RegEdit","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":false},
+  {"id":"APP-006","name":"Command prompt / PowerShell opened","severity":"MEDIUM","description":"cmd.exe or powershell.exe launched from student-level account.","pattern":"cmd\\.exe|powershell|terminal_open","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":false},
+  {"id":"APP-007","name":"Browser extension installed without approval","severity":"MEDIUM","description":"New Chrome/Firefox extension added that is not on the approved list.","pattern":"EXTENSION_INSTALL|ADDON_INSTALLED","source_filter":"BROWSER","action":"Alert Admin + Log","escalate":false},
+  {"id":"APP-008","name":"Cracked / keygen software detected","severity":"CRITICAL","description":"File or process name matching known crack/keygen patterns in filesystem.","pattern":"keygen|crack|serial|license_hack","source_filter":"FILE","action":"Delete + Alert Admin","escalate":true},
+  {"id":"APP-009","name":"Screen recording software launched","severity":"HIGH","description":"OBS, Bandicam, or similar recording software started on student PC.","pattern":"obs|bandicam|screenrec|fraps","source_filter":"PROCESS","action":"Alert Teacher + Log","escalate":false},
+  {"id":"APP-010","name":"Password change attempted by student","severity":"HIGH","description":"Student account attempted to change Windows login password.","pattern":"passwd_change|PASSWORD_CHANGE|net user.*\\*","source_filter":"PROCESS","action":"Block + Alert Admin","escalate":false},
+
+  {"id":"NET-001","name":"Excessive bandwidth usage","severity":"HIGH","description":"Non-class related download or upload exceeding 50MB in 5 min threshold.","pattern":"BANDWIDTH_HIGH|DATA_TRANSFER_HIGH","source_filter":"NETWORK","action":"Throttle + Alert Admin","escalate":false},
+  {"id":"NET-002","name":"P2P / torrent client active","severity":"CRITICAL","description":"BitTorrent, uTorrent, or P2P traffic signature detected on network.","pattern":"bittorrent|utorrent|p2p_protocol|TORRENT","source_filter":"NETWORK","action":"Block + Alert Admin","escalate":true},
+  {"id":"NET-003","name":"Access to dark web / .onion domains","severity":"CRITICAL","description":"DNS request to .onion TLD or known Tor exit node IP.","pattern":"\\.onion|TOR_EXIT_NODE|DARK_WEB","source_filter":"DNS","action":"Block + Alert Admin + Escalate","escalate":true},
+  {"id":"NET-004","name":"PC connected to unauthorized external server","severity":"HIGH","description":"Outbound connection to non-whitelisted IP or domain.","pattern":"UNAUTHORIZED_CONNECTION|BLOCKED_IP","source_filter":"NETWORK","action":"Alert Admin + Log","escalate":false},
+  {"id":"NET-005","name":"ARP spoofing or MAC flooding detected","severity":"CRITICAL","description":"Abnormal ARP broadcast pattern suggesting man-in-the-middle attempt.","pattern":"ARP_SPOOF|MAC_FLOOD|MITM_DETECT","source_filter":"NETWORK","action":"Isolate PC + Alert Admin","escalate":true},
+  {"id":"NET-006","name":"Student PC pinging other student PCs repeatedly","severity":"MEDIUM","description":"ICMP flood or repeated ping sweep across lab subnet.","pattern":"PING_SWEEP|ICMP_FLOOD","source_filter":"NETWORK","action":"Alert Admin + Log","escalate":false},
+  {"id":"NET-007","name":"File sharing over LAN without permission","severity":"MEDIUM","description":"Network shared folder created by student machine detected.","pattern":"SMB_SHARE|NETWORK_SHARE|SHARE_CREATE","source_filter":"NETWORK","action":"Alert Admin + Log","escalate":false},
+  {"id":"NET-008","name":"DNS over HTTPS (DoH) bypass attempt","severity":"HIGH","description":"Encrypted DNS queries to Cloudflare/Google bypassing lab DNS filter.","pattern":"DOH|DNS_HTTPS|BYPASS_DNS","source_filter":"NETWORK","action":"Block + Alert","escalate":false},
+  {"id":"NET-009","name":"SSH/Telnet outbound connection from student PC","severity":"HIGH","description":"Outbound port 22 or 23 traffic from a student-role machine.","pattern":"SSH_OUTBOUND|TELNET_OUTBOUND|PORT_22|PORT_23","source_filter":"NETWORK","action":"Block + Alert Admin","escalate":false},
+  {"id":"NET-010","name":"Unusually high number of failed login attempts to server","severity":"CRITICAL","description":"More than 5 failed attempts to lab server or domain controller.","pattern":"FAILED_LOGIN_SPAM|BRUTE_FORCE|LOGIN_ATTEMPTS","source_filter":"AUTH","action":"Lock Account + Alert Admin","escalate":true},
+
+  {"id":"HW-001","name":"PC power button pressed during class session","severity":"MEDIUM","description":"Unscheduled shutdown or restart initiated from power button or Windows.","pattern":"POWER_BUTTON|SHUTDOWN_ATTEMPT|RESTART","source_filter":"SYSTEM","action":"Alert Teacher + Log","escalate":false},
+  {"id":"HW-002","name":"Monitor unplugged or display connection severed","severity":"MEDIUM","description":"Display signal lost unexpectedly mid-session.","pattern":"DISPLAY_LOST|MONITOR_DISCONNECT","source_filter":"HARDWARE","action":"Alert Admin + Log","escalate":false},
+  {"id":"HW-003","name":"Keyboard/mouse tampered with","severity":"MEDIUM","description":"USB HID device swap or additional device attached to student PC.","pattern":"HID_SWAP|DEVICE_SWAP|UNKNOWN_HID","source_filter":"HARDWARE","action":"Log + Inspect","escalate":false},
+  {"id":"HW-004","name":"Webcam enabled without permission","severity":"HIGH","description":"Camera device accessed by a process outside approved list.","pattern":"WEBCAM_ACCESS|CAMERA_ACTIVE","source_filter":"HARDWARE","action":"Block + Alert Admin","escalate":false},
+  {"id":"HW-005","name":"Microphone accessed without permission","severity":"MEDIUM","description":"Microphone input opened by unapproved application.","pattern":"MICROPHONE_ACCESS|MIC_ACTIVE","source_filter":"HARDWARE","action":"Alert Admin + Log","escalate":false},
+  {"id":"HW-006","name":"Network cable swapped between PCs","severity":"HIGH","description":"Physical topology change detected (LLDP/CDP neighbor change on switch port).","pattern":"TOPOLOGY_CHANGE|PORT_SWAP|CABLE_SWAP","source_filter":"NETWORK","action":"Alert Admin","escalate":false},
+
+  {"id":"AUTH-001","name":"Multiple failed login attempts","severity":"HIGH","description":"5 or more consecutive failed login attempts on a single PC.","pattern":"FAILED_LOGIN_SPAM|BRUTE_FORCE","source_filter":"LOGIN","action":"Lock + Alert Admin","escalate":false},
+  {"id":"AUTH-002","name":"Generic or shared account used","severity":"MEDIUM","description":"Login with 'student', 'user', 'guest', or other shared credentials.","pattern":"SHARED_LOGIN|GENERIC_ACCOUNT","source_filter":"LOGIN","action":"Alert Admin + Log","escalate":false},
+  {"id":"AUTH-003","name":"Administrator account accessed from student PC","severity":"CRITICAL","description":"Admin-level account logged in from a student workstation position.","pattern":"ADMIN_LOGIN|PRIVILEGE_ESCALATION|ROOT_LOGIN","source_filter":"LOGIN","action":"Alert Admin + Log + Investigate","escalate":true},
+  {"id":"AUTH-004","name":"Auto-login or remembered password used","severity":"MEDIUM","description":"Browser or OS remembered credentials used to bypass authentication.","pattern":"AUTO_LOGIN|CACHED_CREDS|SAVED_PASSWORD","source_filter":"LOGIN","action":"Clear + Alert Admin","escalate":false},
+  {"id":"AUTH-005","name":"Session token theft / cookie replay suspected","severity":"CRITICAL","description":"Same session token seen from two different IP addresses simultaneously.","pattern":"SESSION_HIJACK|TOKEN_REUSE|COOKIE_REPLAY","source_filter":"AUTH","action":"Invalidate Session + Alert","escalate":true},
+
+  {"id":"DAT-001","name":"Bulk file deletion detected","severity":"CRITICAL","description":"More than 20 files deleted within 2 minutes from any directory.","pattern":"BULK_DELETE|MASS_DELETION","source_filter":"FILE","action":"Restore + Alert Admin","escalate":true},
+  {"id":"DAT-002","name":"Sensitive file type accessed","severity":"HIGH","description":"Database dumps or spreadsheet files containing PII opened outside admin account.","pattern":"PII_FILE|SENSITIVE_DATA|DATABASE_DUMP","source_filter":"FILE","action":"Alert Admin + Log","escalate":false},
+  {"id":"DAT-003","name":"File renamed with double extension","severity":"CRITICAL","description":"Classic malware masking technique — executable hiding as image/doc.","pattern":"DOUBLE_EXTENSION|.*\\.jpg\\.exe|.*\\.pdf\\.exe","source_filter":"FILE","action":"Quarantine + Alert Admin","escalate":true},
+  {"id":"DAT-004","name":"Large file upload to cloud","severity":"HIGH","description":"More than 10MB uploaded to cloud storage during class session.","pattern":"CLOUD_UPLOAD|GDRIVE_UPLOAD|DROPBOX_UPLOAD","source_filter":"NETWORK","action":"Alert Admin + Log","escalate":false},
+  {"id":"DAT-005","name":"Recycle bin emptied during session","severity":"MEDIUM","description":"Permanent deletion of files including recycle bin purge from student account.","pattern":"RECYCLE_BIN_EMPTY|EMPTY_TRASH","source_filter":"FILE","action":"Log","escalate":false},
+  {"id":"DAT-006","name":"System file modified","severity":"CRITICAL","description":"Any write operation to OS system directories from a student account.","pattern":"SYSTEM_FILE_MOD|WINDOWS_DIR_WRITE","source_filter":"FILE","action":"Block + Alert Admin","escalate":true},
+  {"id":"DAT-007","name":"Encrypted archive created","severity":"HIGH","description":"Password-protected archive created — possible attempt to hide exfiltrated data.","pattern":"ZIP_ENCRYPTED|RAR_ENCRYPTED|7Z_ENCRYPTED","source_filter":"FILE","action":"Alert Admin + Log","escalate":false},
+  {"id":"DAT-008","name":"Clipboard contains sensitive data pattern","severity":"HIGH","description":"Clipboard content matches credit card, Aadhaar, or password pattern.","pattern":"CLIPBOARD_PII|CLIPBOARD_CC|CLIPBOARD_PASS","source_filter":"CLIPBOARD","action":"Clear Clipboard + Alert","escalate":false},
+
+  {"id":"ACA-001","name":"AI tool accessed","severity":"CRITICAL","description":"Browser tab with generative AI assistants (ChatGPT, Gemini, Copilot) opened","pattern":"chatgpt|gemini|copilot|ai.*assistant","source_filter":"BROWSER","action":"Flag + Alert Teacher + Log","escalate":true},
+  {"id":"ACA-002","name":"Question paper photo captured","severity":"CRITICAL","description":"Camera app or scanner software activated","pattern":"CAMERA_ACTIVE|SCANNER_ACTIVE","source_filter":"HARDWARE","action":"Alert Teacher + Lock PC","escalate":true},
+  {"id":"ACA-003","name":"WhatsApp or messaging active ","severity":"CRITICAL","description":"Messaging apps or browser tabs with chat services detected","pattern":"whatsapp|telegram|discord|messaging_app","source_filter":"PROCESS","action":"Block + Alert Teacher","escalate":true},
+  {"id":"ACA-004","name":"Paraphrasing / plagiarism-check site accessed","severity":"MEDIUM","description":"Quillbot, Grammarly, Spinbot, Turnitin accessed","pattern":"quillbot|grammarly|spinbot|turnitin","source_filter":"BROWSER","action":"Alert Teacher + Log","escalate":false},
+  {"id":"ACA-005","name":"Programming answer site accessed","severity":"HIGH","description":"Stack Overflow, GitHub Copilot, GeeksForGeeks during closed-book coding exam","pattern":"stackoverflow|github.*copilot|geeksforgeeks","source_filter":"BROWSER","action":"Alert Teacher + Log","escalate":false}
 ]
