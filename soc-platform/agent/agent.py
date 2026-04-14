@@ -18,6 +18,18 @@ import student_monitor
 import windows_eventlog
 import windows_monitors
 
+def _env_flag(name: str, default: bool = True) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_csv(name: str) -> list[str]:
+    value = os.getenv(name, "")
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 class Agent:
     def __init__(self):
         self.agent_id = os.getenv("AGENT_ID", AGENT_ID)
@@ -41,24 +53,29 @@ class Agent:
                 self.monitors.append(("WINDOWS_EVENT", windows_eventlog.WindowsEventLogMonitor(["System", "Security", "Application"])))
                 self.formatters["WINDOWS_EVENT"] = windows_eventlog.format_for_soc
                 
-                try:
-                    self.monitors.append(("USB", windows_monitors.WindowsUSBMonitor()))
-                    self.formatters["USB"] = windows_monitors.format_usb_event
-                except Exception:
-                    logger.info("WMI not running or unavailable. USB monitor skipped.")
-                    pass
+                if _env_flag("MONITOR_USB_DEVICES", True):
+                    try:
+                        self.monitors.append(("USB", windows_monitors.WindowsUSBMonitor()))
+                        self.formatters["USB"] = windows_monitors.format_usb_event
+                    except Exception:
+                        logger.info("WMI not running or unavailable. USB monitor skipped.")
+                        pass
                     
-                self.monitors.append(("POWERSHELL", windows_monitors.WindowsPowerShellMonitor()))
-                self.formatters["POWERSHELL"] = windows_monitors.format_powershell_event
+                if _env_flag("MONITOR_SHELL_COMMANDS", True):
+                    self.monitors.append(("POWERSHELL", windows_monitors.WindowsPowerShellMonitor()))
+                    self.formatters["POWERSHELL"] = windows_monitors.format_powershell_event
                 
-                self.monitors.append(("WINDOW", windows_monitors.WindowsActiveWindowMonitor(check_interval=self.send_interval)))
-                self.formatters["WINDOW"] = windows_monitors.format_window_event
+                if _env_flag("MONITOR_ACTIVE_WINDOW", True):
+                    self.monitors.append(("WINDOW", windows_monitors.WindowsActiveWindowMonitor(check_interval=self.send_interval)))
+                    self.formatters["WINDOW"] = windows_monitors.format_window_event
                 
-                self.monitors.append(("PROCESS", windows_monitors.WindowsProcessMonitor()))
-                self.formatters["PROCESS"] = windows_monitors.format_process_event
+                if _env_flag("MONITOR_PROCESSES", True):
+                    self.monitors.append(("PROCESS", windows_monitors.WindowsProcessMonitor()))
+                    self.formatters["PROCESS"] = windows_monitors.format_process_event
                 
-                self.monitors.append(("BROWSER", browser_monitor.BrowserHistoryMonitor()))
-                self.formatters["BROWSER"] = browser_monitor.format_for_soc
+                if _env_flag("MONITOR_BROWSER_HISTORY", True):
+                    self.monitors.append(("BROWSER", browser_monitor.BrowserHistoryMonitor(allowed_domains=_env_csv("BROWSER_ALLOWED_DOMAINS"))))
+                    self.formatters["BROWSER"] = browser_monitor.format_for_soc
             except Exception as e:
                 logger.info(f"Error initializing Windows monitors: {e}")
         else:

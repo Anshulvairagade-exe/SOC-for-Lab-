@@ -89,16 +89,19 @@ class OSAbstraction:
             
             return {
                 "chrome": [
-                    f"{appdata_local}\\Google\\Chrome\\User Data\\Default\\History"
+                    f"{appdata_local}\\Google\\Chrome\\User Data\\Default\\History",
+                    f"{appdata_local}\\Google\\Chrome\\User Data\\Profile *\\History"
                 ],
                 "firefox": [
                     f"{appdata_roaming}\\Mozilla\\Firefox\\Profiles\\*\\places.sqlite"
                 ],
                 "brave": [
-                    f"{appdata_local}\\BraveSoftware\\Brave-Browser\\User Data\\Default\\History"
+                    f"{appdata_local}\\BraveSoftware\\Brave-Browser\\User Data\\Default\\History",
+                    f"{appdata_local}\\BraveSoftware\\Brave-Browser\\User Data\\Profile *\\History"
                 ],
                 "edge": [
-                    f"{appdata_local}\\Microsoft\\Edge\\User Data\\Default\\History"
+                    f"{appdata_local}\\Microsoft\\Edge\\User Data\\Default\\History",
+                    f"{appdata_local}\\Microsoft\\Edge\\User Data\\Profile *\\History"
                 ]
             }
         return {}

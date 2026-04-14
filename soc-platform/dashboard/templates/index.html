@@ -473,7 +473,7 @@
       } catch(_) {}
     }
 
-    // ── BROWSER log  (Browser=... URL=... Title=...)
+    // ── BROWSER log  (Browser=... URL=... Title=... Domain=... Activity=...)
     if (/Browser=/i.test(raw)) {
       const kvRe = /([A-Za-z_][A-Za-z0-9_\-]*)=("([^"]*)"|([\S]+))/g;
       let m;
@@ -481,17 +481,34 @@
         const key = m[1].toLowerCase();
         const val = m[3] !== undefined ? m[3] : m[4];
         if (key === 'browser') { fields.push({ icon: '🌐', label: 'Browser', value: capitalize(val) }); continue; }
+        if (key === 'profile') { fields.push({ icon: '👤', label: 'Browser Profile', value: val }); continue; }
+        if (key === 'domain') { fields.push({ icon: '🔗', label: 'Site Visited', value: val }); continue; }
+        if (key === 'activity') {
+          fields.push({ icon: '🧭', label: 'Activity Type', value: humaniseRule(val) });
+          continue;
+        }
         if (key === 'url') {
           try {
             const url = new URL(val);
             const domain = url.hostname.replace(/^www\./, '');
-            fields.push({ icon: '🔗', label: 'Site Visited', value: domain });
+            fields.push({ icon: '🔗', label: 'Full URL', value: val });
+            if (!fields.some(f => f.label === 'Site Visited')) {
+              fields.push({ icon: '🌍', label: 'Site Visited', value: domain });
+            }
             const q = url.searchParams.get('q') || url.searchParams.get('query') || url.searchParams.get('search');
             if (q) fields.push({ icon: '🔍', label: 'Search Query', value: `"${q}"` });
+            if (/youtube\.com|youtu\.be/i.test(domain)) {
+              const videoId = url.searchParams.get('v') || (url.pathname.startsWith('/shorts/') ? url.pathname.split('/')[2] : url.pathname.replace(/^\//, ''));
+              if (videoId && !/results/i.test(url.pathname)) {
+                fields.push({ icon: '▶️', label: 'YouTube Video ID', value: videoId });
+              }
+            }
           } catch(_) { fields.push({ icon: '🔗', label: 'URL', value: val }); }
           continue;
         }
         if (key === 'title') { fields.push({ icon: '📝', label: 'Page Title', value: val }); continue; }
+        if (key === 'searchquery') { fields.push({ icon: '🔍', label: 'Search Query', value: val }); continue; }
+        if (key === 'youtubevideoid') { fields.push({ icon: '▶️', label: 'YouTube Video ID', value: val }); continue; }
       }
       return fields;
     }
@@ -515,38 +532,58 @@
     }
 
     // ── PROCESS STARTED/TERMINATED
-    if (/Process Started:/i.test(raw)) {
-      const pnM = raw.match(/Process Started:\s*([^\s(]+)/i);
-      const pidM = raw.match(/PID:\s*(\d+)/i);
-      const usrM = raw.match(/User:\s*([^)]+)/i);
+    if (/PROCESS_STARTED:|Process Started:/i.test(raw)) {
+      const pnM = raw.match(/(?:PROCESS_STARTED:.*?\|\s*Name=|Process Started:\s*)([^\s|]+)/i);
+      const pidM = raw.match(/PID[=:]\s*(\d+)/i);
+      const usrM = raw.match(/User[=:]\s*([^|)]+)/i);
       if (pnM) fields.push({ icon: '🚀', label: 'App Launched', value: pnM[1] });
       if (pidM) fields.push({ icon: '🔢', label: 'Process ID', value: pidM[1] });
       if (usrM && usrM[1] !== 'N/A') fields.push({ icon: '👤', label: 'User', value: usrM[1].trim() });
+      const cmdM = raw.match(/Cmdline="?([^"|]+)"?/i);
+      if (cmdM) fields.push({ icon: '💬', label: 'Command Line', value: cmdM[1].trim() });
       return fields;
     }
-    if (/Process Terminated:/i.test(raw)) {
-      const pidM = raw.match(/PID\s*(\d+)/i);
+    if (/PROCESS_TERMINATED:|Process Terminated:/i.test(raw)) {
+      const pidM = raw.match(/PID[=:]?\s*(\d+)/i);
       fields.push({ icon: '🛑', label: 'Process Ended', value: pidM ? `PID ${pidM[1]}` : raw });
       return fields;
     }
 
-    // ── ACTIVE WINDOW FOCUS  (Window Focus: Title (process.exe))
-    if (/Window Focus:/i.test(raw)) {
-      const wfM = raw.match(/Window Focus:\s*(.+?)\s*\(([^)]+)\)/i);
-      if (wfM) {
-        fields.push({ icon: '🖥️', label: 'Window Opened', value: wfM[1].trim() });
-        fields.push({ icon: '⚙️', label: 'Application',   value: wfM[2].trim() });
-      } else {
+    // ── ACTIVE WINDOW FOCUS
+    if (/WINDOW_FOCUS_CHANGED|Window Focus:/i.test(raw)) {
+      const titleM = raw.match(/WindowTitle="?([^"|]+)"?/i);
+      const procM = raw.match(/Process="?([^"|]+)"?/i);
+      const catM = raw.match(/Category="?([^"|]+)"?/i);
+      if (titleM) fields.push({ icon: '🖥️', label: 'Window Opened', value: titleM[1].trim() });
+      if (procM) fields.push({ icon: '⚙️', label: 'Application', value: procM[1].trim() });
+      if (catM) fields.push({ icon: '🧭', label: 'Category', value: humaniseRule(catM[1]) });
+      if (!titleM && !procM) {
         fields.push({ icon: '🖥️', label: 'Window', value: raw.replace(/Window Focus:\s*/i, '') });
       }
       return fields;
     }
 
-    // ── POWERSHELL COMMAND
-    if (/PowerShell:/i.test(raw)) {
-      const cmd = raw.replace(/PowerShell:\s*/i, '').trim();
+    // ── TERMINAL / POWERSHELL COMMAND
+    if (/TERMINAL_COMMAND|POWERSHELL_COMMAND|PowerShell:/i.test(raw)) {
+      const cmdM = raw.match(/Command="?([^"|]+)"?/i);
+      const shellM = raw.match(/Shell="?([^"|]+)"?/i);
+      const cmd = cmdM ? cmdM[1].trim() : raw.replace(/.*PowerShell:\s*/i, '').trim();
       fields.push({ icon: '💬', label: 'Command Typed', value: cmd });
-      fields.push({ icon: '🖥️', label: 'Application',   value: 'PowerShell / Terminal' });
+      fields.push({ icon: '🖥️', label: 'Application', value: shellM ? shellM[1] : 'PowerShell / Terminal' });
+      return fields;
+    }
+
+    // ── SCREENSHOT ACTIVITY
+    if (/SCREENSHOT|SNIP_TOOL|PRINTSCREEN/i.test(raw)) {
+      const toolM = raw.match(/Tool="?([^"|]+)"?/i);
+      const fileM = raw.match(/File="?([^"|]+)"?/i);
+      const pathM = raw.match(/Path="?([^"|]+)"?/i);
+      const methodM = raw.match(/Method="?([^"|]+)"?/i);
+      fields.push({ icon: '📸', label: 'Activity', value: 'Screenshot Captured' });
+      if (toolM) fields.push({ icon: '🛠️', label: 'Tool', value: toolM[1].trim() });
+      if (methodM) fields.push({ icon: '🧭', label: 'Detection', value: methodM[1].trim() });
+      if (fileM) fields.push({ icon: '🖼️', label: 'File', value: fileM[1].trim() });
+      if (pathM) fields.push({ icon: '📁', label: 'Path', value: pathM[1].trim() });
       return fields;
     }
 
@@ -601,9 +638,10 @@
     if (!log && !ruleName) return { icon: '📋', label: 'Event' };
     const text = (log || '') + (ruleName || '');
     if (/Browser=/i.test(log))                           return { icon: '🌐', label: 'Browser' };
-    if (/PowerShell:/i.test(log))                        return { icon: '💬', label: 'Terminal' };
-    if (/Window Focus:/i.test(log))                      return { icon: '🖥️', label: 'App Focus' };
-    if (/Process (Started|Terminated)/i.test(log))       return { icon: '🚀', label: 'Process' };
+    if (/TERMINAL_COMMAND|POWERSHELL_COMMAND|PowerShell:/i.test(log)) return { icon: '💬', label: 'Terminal' };
+    if (/WINDOW_FOCUS_CHANGED|Window Focus:/i.test(log)) return { icon: '🖥️', label: 'App Focus' };
+    if (/SCREENSHOT|SNIP_TOOL|PRINTSCREEN/i.test(log))   return { icon: '📸', label: 'Screenshot' };
+    if (/PROCESS_(STARTED|TERMINATED)|Process (Started|Terminated)/i.test(log)) return { icon: '🚀', label: 'Process' };
     if (/USB Device/i.test(log))                         return { icon: '🔌', label: 'USB' };
     if (/EventID=/i.test(log))                           return { icon: '🛡️', label: 'System Log' };
     return { icon: '📋', label: 'Event' };
@@ -962,7 +1000,8 @@
                 { icon:'🌐', label:'Browser Activity',    desc:'Sites visited, searches' },
                 { icon:'🚀', label:'App Launches',        desc:'Programs opened or closed' },
                 { icon:'🖥️', label:'Active Window',       desc:'Which app is in use' },
-                { icon:'💬', label:'Terminal Commands',   desc:'PowerShell commands typed' },
+                { icon:'💬', label:'Terminal Commands',   desc:'PowerShell and terminal history' },
+                { icon:'📸', label:'Screenshot Activity', desc:'Snips, screen captures, screenshot files' },
                 { icon:'🔌', label:'USB Devices',         desc:'Drives plugged in/out' },
                 { icon:'🛡️', label:'System Events',       desc:'Logins, errors, security' },
               ].map(({ icon, label, desc }) => (

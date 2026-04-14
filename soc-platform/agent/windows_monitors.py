@@ -2,6 +2,7 @@
 Windows-specific monitors for USB, PowerShell, active windows, and processes.
 """
 
+import re
 import os
 import sys
 import time
@@ -45,6 +46,19 @@ SUSPICIOUS_PROCESS_NAMES = {
     "wireshark.exe",
     "winscp.exe",
     "xftp.exe",
+}
+
+SCREENSHOT_PROCESS_NAMES = {
+    "greenshot.exe",
+    "lightshot.exe",
+    "screenclippinghost.exe",
+    "screentogif.exe",
+    "screensketch.exe",
+    "sharex.exe",
+    "snagit32.exe",
+    "snagitcapture.exe",
+    "snagiteditor.exe",
+    "snippingtool.exe",
 }
 
 APPLICATION_CATEGORY_RULES = {
@@ -235,35 +249,49 @@ class WindowsPowerShellMonitor:
         if sys.platform != "win32":
             raise RuntimeError("WindowsPowerShellMonitor only works on Windows")
 
-        appdata = os.getenv("APPDATA", "")
-        self.history_file = Path(appdata) / "Microsoft" / "Windows" / "PowerShell" / "PSReadLine" / "ConsoleHost_history.txt"
-        self.last_position = 0
-        self.last_inode = None
+        appdata = Path(os.getenv("APPDATA", ""))
+        self.history_files = [
+            appdata / "Microsoft" / "Windows" / "PowerShell" / "PSReadLine" / "ConsoleHost_history.txt",
+            appdata / "Microsoft" / "PowerShell" / "PSReadLine" / "ConsoleHost_history.txt",
+        ]
+        self.file_state: Dict[Path, Dict[str, int]] = {}
 
-        if self.history_file.exists():
-            self.last_position = self.history_file.stat().st_size
-            self.last_inode = self.history_file.stat().st_ino
+        for history_file in self.history_files:
+            if history_file.exists():
+                stat = history_file.stat()
+                self.file_state[history_file] = {
+                    "position": stat.st_size,
+                    "inode": getattr(stat, "st_ino", 0),
+                }
 
     def collect_new_commands(self) -> List[Dict]:
         """Read new PowerShell commands from history."""
         events = []
 
-        if not self.history_file.exists():
-            return events
+        for history_file in self.history_files:
+            if not history_file.exists():
+                continue
 
-        try:
-            stat = self.history_file.stat()
+            try:
+                stat = history_file.stat()
+                state = self.file_state.setdefault(
+                    history_file,
+                    {"position": 0, "inode": getattr(stat, "st_ino", 0)},
+                )
 
-            if self.last_inode is not None and stat.st_ino != self.last_inode:
-                self.last_position = 0
-                self.last_inode = stat.st_ino
+                if state["inode"] and getattr(stat, "st_ino", 0) != state["inode"]:
+                    state["position"] = 0
+                    state["inode"] = getattr(stat, "st_ino", 0)
 
-            if stat.st_size > self.last_position:
-                with open(self.history_file, "r", encoding="utf-8", errors="ignore") as handle:
-                    handle.seek(self.last_position)
+                if stat.st_size <= state["position"]:
+                    continue
+
+                with open(history_file, "r", encoding="utf-8", errors="ignore") as handle:
+                    handle.seek(state["position"])
                     new_lines = handle.readlines()
-                    self.last_position = handle.tell()
+                    state["position"] = handle.tell()
 
+                shell_name = "pwsh" if "Microsoft\\PowerShell" in str(history_file) else "powershell"
                 for line in new_lines:
                     line = line.strip()
                     if line:
@@ -272,10 +300,12 @@ class WindowsPowerShellMonitor:
                                 "timestamp": datetime.now().isoformat(),
                                 "event_type": "POWERSHELL_COMMAND",
                                 "command": line,
+                                "shell": shell_name,
+                                "history_file": str(history_file),
                             }
                         )
-        except Exception as exc:
-            print(f"[PowerShell] Error reading history: {exc}")
+            except Exception as exc:
+                print(f"[PowerShell] Error reading {history_file}: {exc}")
 
         return events
 
@@ -367,6 +397,88 @@ class WindowsProcessMonitor:
             raise RuntimeError("WindowsProcessMonitor only works on Windows")
 
         self.known_pids = {proc.pid for proc in psutil.process_iter(["pid"])}
+        self.screenshot_dirs = self._get_screenshot_dirs()
+        self.known_screenshot_files = set()
+        self._baseline_screenshots()
+
+    def _get_screenshot_dirs(self) -> List[Path]:
+        user_profile = Path(os.getenv("USERPROFILE", str(Path.home())))
+        candidates = [
+            user_profile / "Pictures",
+            user_profile / "Pictures" / "Screenshots",
+            user_profile / "Desktop",
+            user_profile / "Downloads",
+            user_profile / "OneDrive" / "Pictures" / "Screenshots",
+            user_profile / "OneDrive" / "Desktop",
+        ]
+        return [path for path in candidates if path.exists() and path.is_dir()]
+
+    def _baseline_screenshots(self):
+        for directory in self.screenshot_dirs:
+            try:
+                for file_path in directory.iterdir():
+                    if file_path.is_file() and self._looks_like_screenshot(file_path.name):
+                        self.known_screenshot_files.add(str(file_path))
+            except OSError:
+                continue
+
+    def _looks_like_screenshot(self, filename: str) -> bool:
+        lowered = filename.lower()
+        if not lowered.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp")):
+            return False
+
+        patterns = (
+            "screen shot",
+            "screenshot",
+            "screen_capture",
+            "screen capture",
+            "snip",
+            "snipping",
+            "capture",
+        )
+        if any(pattern in lowered for pattern in patterns):
+            return True
+
+        return bool(re.search(r"\d{4}[-_]\d{2}[-_]\d{2}.*\d{2}[-_]\d{2}", lowered))
+
+    def _collect_screenshot_file_events(self) -> List[Dict]:
+        events = []
+        now = time.time()
+
+        for directory in self.screenshot_dirs:
+            try:
+                for file_path in directory.iterdir():
+                    if not file_path.is_file():
+                        continue
+
+                    key = str(file_path)
+                    if key in self.known_screenshot_files:
+                        continue
+
+                    self.known_screenshot_files.add(key)
+                    if not self._looks_like_screenshot(file_path.name):
+                        continue
+
+                    try:
+                        if now - file_path.stat().st_mtime > 120:
+                            continue
+                    except OSError:
+                        continue
+
+                    events.append(
+                        {
+                            "timestamp": datetime.now().isoformat(),
+                            "event_type": "SCREENSHOT_TAKEN",
+                            "tool_name": "file_watch",
+                            "file_name": file_path.name,
+                            "file_path": str(file_path),
+                            "detection_method": "file",
+                        }
+                    )
+            except OSError:
+                continue
+
+        return events
 
     def _build_process_event(self, event_type: str, proc_info: Dict) -> Dict:
         create_time = proc_info.get("create_time") or 0
@@ -410,6 +522,12 @@ class WindowsProcessMonitor:
                     if process_name in TERMINAL_PROCESS_NAMES:
                         events.append(self._build_process_event("TERMINAL_OPENED", proc_info))
 
+                    if process_name in SCREENSHOT_PROCESS_NAMES:
+                        screenshot_event = self._build_process_event("SCREENSHOT_TAKEN", proc_info)
+                        screenshot_event["tool_name"] = process_name
+                        screenshot_event["detection_method"] = "process"
+                        events.append(screenshot_event)
+
                     if process_name in SUSPICIOUS_PROCESS_NAMES:
                         suspicious_event = self._build_process_event("SUSPICIOUS_PROCESS", proc_info)
                         suspicious_event["reason"] = "matched_watchlist"
@@ -429,6 +547,8 @@ class WindowsProcessMonitor:
                     }
                 )
                 self.known_pids.remove(pid)
+
+            events.extend(self._collect_screenshot_file_events())
         except Exception as exc:
             print(f"[ProcessMonitor] Error: {exc}")
 
@@ -462,7 +582,12 @@ def format_usb_event(event: Dict) -> str:
 
 def format_powershell_event(event: Dict) -> str:
     """Format PowerShell command for logging."""
-    return f"POWERSHELL_COMMAND: PowerShell history captured | Command={event['command']}"
+    shell = event.get("shell", "powershell")
+    history_file = event.get("history_file", "unknown")
+    return (
+        "TERMINAL_COMMAND POWERSHELL_COMMAND: Terminal command captured | "
+        f"Shell={shell} | Command=\"{event['command']}\" | HistoryFile=\"{history_file}\""
+    )
 
 
 def format_window_event(event: Dict) -> str:
@@ -494,6 +619,22 @@ def format_process_event(event: Dict) -> str:
             f"Name={event['name']} | PID={event['pid']} | User={event.get('username', 'Unknown')} | "
             f"Cmdline={event.get('cmdline', '')}"
         )
+
+    if event["event_type"] == "SCREENSHOT_TAKEN":
+        tokens = "SCREENSHOT PRINTSCREEN SNIP_TOOL"
+        details = [
+            f"Tool={event.get('tool_name', event.get('name', 'unknown'))}",
+            f"Method={event.get('detection_method', 'process')}",
+        ]
+        if event.get("pid"):
+            details.append(f"PID={event['pid']}")
+        if event.get("file_name"):
+            details.append(f"File=\"{event['file_name']}\"")
+        if event.get("file_path"):
+            details.append(f"Path=\"{event['file_path']}\"")
+        if event.get("cmdline"):
+            details.append(f"Cmdline=\"{event['cmdline']}\"")
+        return f"{tokens}: Screenshot activity detected | " + " | ".join(details)
 
     if event["event_type"] == "APPLICATION_ANALYSIS":
         off_task_token = " OFFTASK_APPLICATION" if event.get("offtask") else ""
