@@ -696,6 +696,7 @@
     const [alerts, setAlerts]     = useState([]);
     const [agents, setAgents]     = useState([]);
     const [stats,  setStats]      = useState({ CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 });
+    const [insights, setInsights] = useState(null);
     const [lastSync, setLastSync] = useState(null);
 
     const [tabFilter,   setTabFilter]   = useState('all');
@@ -703,6 +704,10 @@
     const [agentFilter, setAgentFilter] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFilter,  setDateFilter]  = useState('');
+    const [insightMinutes, setInsightMinutes] = useState(60);
+    const [askQuery, setAskQuery] = useState('Give summary');
+    const [askResult, setAskResult] = useState(null);
+    const [askLoading, setAskLoading] = useState(false);
     const [expanded,    setExpanded]    = useState(new Set());
     const [toasts,      setToasts]      = useState([]);
 
@@ -715,10 +720,14 @@
         let url = `${API_BASE}/alerts?limit=500`;
         if (dateFilter) url += '&date=' + encodeURIComponent(dateFilter);
 
-        const [alertsData, agentsData, statsData] = await Promise.all([
+        let insightUrl = `${API_BASE}/insights/teacher?minutes=${insightMinutes}`;
+        if (agentFilter) insightUrl += '&hostname=' + encodeURIComponent(agentFilter);
+
+        const [alertsData, agentsData, statsData, insightData] = await Promise.all([
           fetch(url).then(r => r.json()),
           fetch(`${API_BASE}/agents`).then(r => r.json()),
           fetch(`${API_BASE}/alerts/stats`).then(r => r.json()),
+          fetch(insightUrl).then(r => r.json()),
         ]);
 
         if (!isFirst.current) {
@@ -737,9 +746,10 @@
         setAlerts(alertsData);
         setAgents(agentsData);
         setStats(statsData);
+        setInsights(insightData);
         setLastSync(Date.now());
       } catch(e) { console.error('Fetch error:', e); }
-    }, [dateFilter]);
+    }, [dateFilter, agentFilter, insightMinutes]);
 
     useEffect(() => {
       fetchData();
@@ -760,6 +770,39 @@
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+
+    const askTeacher = async () => {
+      const q = (askQuery || '').trim();
+      if (!q) return;
+      try {
+        setAskLoading(true);
+        let url = `${API_BASE}/insights/ask?question=${encodeURIComponent(q)}&minutes=${insightMinutes}`;
+        if (agentFilter) url += `&hostname=${encodeURIComponent(agentFilter)}`;
+        const data = await fetch(url).then(r => r.json());
+        setAskResult(data);
+      } catch (e) {
+        console.error('Ask failed:', e);
+      } finally {
+        setAskLoading(false);
+      }
+    };
+
+    const askTeacherWith = async (q) => {
+      const text = (q || '').trim();
+      if (!text) return;
+      try {
+        setAskLoading(true);
+        setAskQuery(text);
+        let url = `${API_BASE}/insights/ask?question=${encodeURIComponent(text)}&minutes=${insightMinutes}`;
+        if (agentFilter) url += `&hostname=${encodeURIComponent(agentFilter)}`;
+        const data = await fetch(url).then(r => r.json());
+        setAskResult(data);
+      } catch (e) {
+        console.error('Ask failed:', e);
+      } finally {
+        setAskLoading(false);
+      }
+    };
 
     /* ─ Derived ─ */
     const filtered = useMemo(() => {
@@ -1029,6 +1072,139 @@
                   <span style={{fontSize:11,color:'var(--text-2)'}}>{txt}</span>
                 </div>
               ))}
+            </div>
+
+            {/* AI Chatbot */}
+            <div className="card" style={{padding:'16px 18px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <div className="card-title" style={{marginBottom:0}}>🤖 AI Chatbot</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <select
+                    value={insightMinutes}
+                    onChange={e=>setInsightMinutes(parseInt(e.target.value,10))}
+                    style={{background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'4px 8px',fontSize:12}}
+                  >
+                    <option value={30}>30m</option>
+                    <option value={60}>1h</option>
+                    <option value={180}>3h</option>
+                    <option value={480}>8h</option>
+                  </select>
+                  <button
+                    className="ack-btn"
+                    style={{padding:'5px 8px',fontSize:11}}
+                    onClick={() => {
+                      let url = `${API_BASE}/reports/class-period?minutes=${insightMinutes}`;
+                      if (agentFilter) url += `&hostname=${encodeURIComponent(agentFilter)}`;
+                      window.open(url, '_blank');
+                    }}
+                    title="One-click printable class report"
+                  >
+                    📝 Report Card
+                  </button>
+                </div>
+              </div>
+              {!insights || !insights.hosts || insights.hosts.length === 0 ? (
+                <div style={{fontSize:12,color:'var(--text-3)'}}>No recent activity in selected window.</div>
+              ) : (
+                <div>
+                  <div style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>{insights.class_overview}</div>
+                  {insights.class_signals && (
+                    <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                      <span className="src-badge">🤖 AI: {insights.class_signals.ai_usage_machines || 0}</span>
+                      <span className="src-badge">🎮 Games: {insights.class_signals.gaming_machines || 0}</span>
+                      <span className="src-badge">📸 Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
+                      <span className="src-badge">🔌 USB: {insights.class_signals.usb_machines || 0}</span>
+                      <span className="src-badge">🚫 Blocked: {insights.class_signals.blocked_browsing_machines || 0}</span>
+                    </div>
+                  )}
+
+                  {insights.action_queue && insights.action_queue.length > 0 && (
+                    <div style={{marginBottom:10}}>
+                      <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Teacher action queue</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                        {insights.action_queue.slice(0,3).map((q, i) => (
+                          <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                            <strong>{q.hostname}</strong> · {q.priority} · {q.reason}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--text)',marginBottom:8}}>
+                    {insights.hosts[0].brief}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top sites</div>
+                  <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
+                    {(insights.hosts[0].top_domains || []).slice(0,3).join(', ') || '—'}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top commands</div>
+                  <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
+                    {(insights.hosts[0].top_commands || []).slice(0,3).join(' | ') || '—'}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Most important events</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {(insights.hosts[0].important_events || []).slice(0,3).map((ev, idx) => (
+                      <div key={idx} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                        <span style={{fontWeight:700,marginRight:6}}>{ev.severity}</span>
+                        <span>{humaniseRule(ev.rule_name)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {insights.hosts[0].recommendations && insights.hosts[0].recommendations.length > 0 && (
+                    <div style={{marginTop:10}}>
+                      <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Recommended teacher actions</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                        {(insights.hosts[0].recommendations || []).slice(0,3).map((rec, i) => (
+                          <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                            • {rec}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{marginTop:12,fontSize:11,color:'var(--text-3)',marginBottom:6}}>Ask AI chatbot</div>
+                  <div style={{display:'flex',gap:6,marginBottom:6}}>
+                    <input
+                      type="text"
+                      value={askQuery}
+                      onChange={e=>setAskQuery(e.target.value)}
+                      placeholder="e.g. anyone used AI?"
+                      style={{flex:1,background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 9px',fontSize:12}}
+                      onKeyDown={e => { if (e.key === 'Enter') askTeacher(); }}
+                    />
+                    <button
+                      onClick={askTeacher}
+                      disabled={askLoading}
+                      className="ack-btn"
+                      style={{padding:'6px 10px'}}
+                    >
+                      {askLoading ? '...' : 'Ask'}
+                    </button>
+                  </div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                    <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('summary')}>Summary</button>
+                    <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('anyone used ai?')}>AI usage</button>
+                    <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('who was playing games?')}>Gaming</button>
+                  </div>
+                  {askResult && (
+                    <div style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                      <div style={{fontWeight:600,marginBottom:4}}>Answer: {askResult.answer}</div>
+                      {(askResult.matches || []).slice(0,3).map((m, i) => (
+                        <div key={i} style={{fontSize:11,color:'var(--text-2)',marginTop:3}}>
+                          • {m.hostname}
+                          {m.alert_count !== undefined ? ` | Alerts: ${m.alert_count}` : ''}
+                          {m.priority ? ` | ${m.priority}` : ''}
+                          {m.ai_domains ? ` | AI: ${m.ai_domains.join(', ')}` : ''}
+                          {m.game_domains ? ` | Games: ${m.game_domains.join(', ')}` : ''}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </main>

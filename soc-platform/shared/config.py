@@ -20,6 +20,10 @@ MANAGER_MAX_CONNECTIONS = 100      # Max concurrent agent connections
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
+# --- Dashboard Access Control ---
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "9022425319")
+DASHBOARD_SESSION_SECRET = os.getenv("DASHBOARD_SESSION_SECRET", "soc-dashboard-dev-secret-change")
+
 # --- Database ---
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "soc_platform.db"))        # SQLite file path
 

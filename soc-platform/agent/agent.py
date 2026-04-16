@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import platform
 
 CURRENT_DIR = os.path.dirname(__file__)
 PROJECT_ROOT = os.path.join(CURRENT_DIR, "..")
@@ -13,10 +14,18 @@ from shared.config import MANAGER_HOST, MANAGER_PORT, AGENT_ID, AGENT_HOSTNAME, 
 from shared.models import LogEvent
 from shared.os_abstraction import get_os
 from shared.security import SecureSocket
-import browser_monitor
-import student_monitor
-import windows_eventlog
-import windows_monitors
+
+# --- Platform-conditional imports (no cross-contamination) ---
+_PLATFORM = platform.system()   # 'Windows' | 'Linux' | 'Darwin'
+
+if _PLATFORM == "Windows":
+    import browser_monitor
+    import windows_eventlog
+    import windows_monitors
+elif _PLATFORM == "Darwin":
+    import mac_monitor          # macOS-specific monitors
+else:  # Linux / other
+    import student_monitor      # Linux student activity monitor
 
 def _env_flag(name: str, default: bool = True) -> bool:
     value = os.getenv(name)
@@ -48,7 +57,7 @@ class Agent:
         self._init_monitors()
 
     def _init_monitors(self):
-        if self.os_helper.is_windows:
+        if _PLATFORM == "Windows":
             try:
                 self.monitors.append(("WINDOWS_EVENT", windows_eventlog.WindowsEventLogMonitor(["System", "Security", "Application"])))
                 self.formatters["WINDOWS_EVENT"] = windows_eventlog.format_for_soc
@@ -78,7 +87,14 @@ class Agent:
                     self.formatters["BROWSER"] = browser_monitor.format_for_soc
             except Exception as e:
                 logger.info(f"Error initializing Windows monitors: {e}")
+        elif _PLATFORM == "Darwin":
+            # macOS — use native macOS monitor (mac_monitor.py)
+            try:
+                self.monitors.append(("MacStudent", mac_monitor.MacStudentActivityMonitor()))
+            except Exception as e:
+                logger.info(f"Error initializing macOS monitors: {e}")
         else:
+            # Linux / other — use student_monitor.py (unchanged)
             try:
                 self.monitors.append(("Student", student_monitor.StudentActivityMonitor()))
             except Exception as e:
@@ -107,7 +123,7 @@ class Agent:
                 elif name == "BROWSER":
                     for e in monitor.collect_history():
                         logs.append(LogEvent(self.agent_id, self.hostname, name, self.formatters[name](e)))
-                elif name == "Student":
+                elif name == "Student" or name == "MacStudent":
                     for source, event in monitor.collect():
                         logs.append(LogEvent(self.agent_id, self.hostname, source, event))
             except Exception as e:

@@ -219,3 +219,32 @@ def get_alert_counts() -> dict:
     """).fetchall()
     conn.close(); _local.conn = None
     return {r["severity"]: r["count"] for r in rows}
+
+
+def prune_old_data(log_days: int = 7, alert_days: int = 30) -> dict:
+    """
+    Delete old rows to reduce storage use.
+    Returns number of deleted rows from each table.
+    """
+    import time
+
+    now = time.time()
+    log_cutoff = now - (max(1, int(log_days)) * 86400)
+    alert_cutoff = now - (max(1, int(alert_days)) * 86400)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM logs WHERE timestamp < ?", (log_cutoff,))
+    deleted_logs = cur.rowcount if cur.rowcount is not None else 0
+
+    cur.execute("DELETE FROM alerts WHERE timestamp < ?", (alert_cutoff,))
+    deleted_alerts = cur.rowcount if cur.rowcount is not None else 0
+
+    conn.commit()
+    conn.close(); _local.conn = None
+
+    return {
+        "logs": deleted_logs,
+        "alerts": deleted_alerts,
+    }

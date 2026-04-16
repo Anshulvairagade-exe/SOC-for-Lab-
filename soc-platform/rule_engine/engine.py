@@ -37,20 +37,20 @@ class RuleEngine:
     def reload_rules(self):
         self.loader.reload()
         
-    def _is_duplicate(self, rule_id, agent_id, raw_log):
+    def _is_duplicate(self, rule_id, agent_id, raw_log, dedup_seconds=300):
         """Check if we already alerted on this recently."""
         now = time.time()
         # Strip out the leading timestamp (e.g., [2026-04-09T...]) so identical payloads with different times are truly deduplicated
         pure_log = re.sub(r"^\[.*?\]\s*", "", raw_log)
         key = f"{rule_id}:{agent_id}:{pure_log}"
         last = self._last_hit.get(key, 0)
-        if now - last < 300:  # 5 minutes dedup
+        if now - last < dedup_seconds:
             return True
         self._last_hit[key] = now
         
         # Cleanup old entries to prevent memory leak
         if len(self._last_hit) > 10000:
-            cutoff = now - 300
+            cutoff = now - max(60, dedup_seconds)
             self._last_hit = {k: v for k, v in self._last_hit.items() if v > cutoff}
             
         return False
@@ -65,7 +65,8 @@ class RuleEngine:
                 
             # Check regex
             if '_compiled' in rule and rule['_compiled'].search(event.raw_log):
-                if not self._is_duplicate(rule['id'], event.agent_id, event.raw_log):
+                dedup_seconds = int(rule.get("dedup_seconds", 300))
+                if not self._is_duplicate(rule['id'], event.agent_id, event.raw_log, dedup_seconds):
                     alert = Alert(
                         rule_id=rule['id'],
                         rule_name=rule['name'],
