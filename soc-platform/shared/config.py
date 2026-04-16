@@ -21,8 +21,47 @@ API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # --- Dashboard Access Control ---
-DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "9022425319")
 DASHBOARD_SESSION_SECRET = os.getenv("DASHBOARD_SESSION_SECRET", "soc-dashboard-dev-secret-change")
+
+
+def _default_teacher_accounts() -> list[tuple[str, str]]:
+    return [
+        ("teacher01", "Lab@Teacher01"),
+        ("teacher02", "Lab@Teacher02"),
+        ("teacher03", "Lab@Teacher03"),
+        ("teacher04", "Lab@Teacher04"),
+        ("teacher05", "Lab@Teacher05"),
+        ("teacher06", "Lab@Teacher06"),
+        ("teacher07", "Lab@Teacher07"),
+        ("teacher08", "Lab@Teacher08"),
+        ("teacher09", "Lab@Teacher09"),
+    ]
+
+
+def _parse_teacher_accounts(raw_value: str | None) -> list[tuple[str, str]]:
+    if not raw_value:
+        return _default_teacher_accounts()
+
+    parsed_accounts: list[tuple[str, str]] = []
+    for entry in raw_value.split(","):
+        item = entry.strip()
+        if not item:
+            continue
+        if ":" not in item:
+            continue
+        username, password = item.split(":", 1)
+        username = username.strip()
+        password = password.strip()
+        if username and password:
+            parsed_accounts.append((username, password))
+
+    if not parsed_accounts:
+        return _default_teacher_accounts()
+
+    return parsed_accounts
+
+
+TEACHER_ACCOUNTS = _parse_teacher_accounts(os.getenv("TEACHER_ACCOUNTS"))
 
 # --- Database ---
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "soc_platform.db"))        # SQLite file path

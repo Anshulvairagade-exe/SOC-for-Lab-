@@ -94,6 +94,24 @@
       border: 1px solid var(--border);
       border-radius: 20px;
     }
+    .teacher-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text);
+      padding: 5px 12px;
+      background: var(--accent-bg);
+      border: 1px solid var(--accent-br);
+      border-radius: 20px;
+    }
+    .logout-btn {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      background: #334155;
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      padding: 6px 10px;
+      text-decoration: none;
+    }
     .live-dot {
       width: 6px; height: 6px; border-radius: 50%;
       background: var(--online);
@@ -705,6 +723,7 @@
     const [stats,  setStats]      = useState({ CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 });
     const [insights, setInsights] = useState(null);
     const [lastSync, setLastSync] = useState(null);
+    const [currentTeacher, setCurrentTeacher] = useState('');
 
     const [tabFilter,   setTabFilter]   = useState('all');
     const [sevFilter,   setSevFilter]   = useState(null);
@@ -730,11 +749,12 @@
         let insightUrl = `${API_BASE}/insights/teacher?minutes=${insightMinutes}`;
         if (agentFilter) insightUrl += '&hostname=' + encodeURIComponent(agentFilter);
 
-        const [alertsData, agentsData, statsData, insightData] = await Promise.all([
+        const [alertsData, agentsData, statsData, insightData, authData] = await Promise.all([
           fetch(url).then(r => r.json()),
           fetch(`${API_BASE}/agents`).then(r => r.json()),
           fetch(`${API_BASE}/alerts/stats`).then(r => r.json()),
           fetch(insightUrl).then(r => r.json()),
+          fetch(`${API_BASE}/auth/me`).then(r => r.json()),
         ]);
 
         if (!isFirst.current) {
@@ -754,6 +774,7 @@
         setAgents(agentsData);
         setStats(statsData);
         setInsights(insightData);
+        setCurrentTeacher(authData?.username || '');
         setLastSync(Date.now());
       } catch(e) { console.error('Fetch error:', e); }
     }, [dateFilter, agentFilter, insightMinutes]);
@@ -842,6 +863,9 @@
             <div className="header-subtitle">Staff Dashboard</div>
           </div>
           <div className="header-spacer" />
+          {currentTeacher && (
+            <div className="teacher-pill">👩‍🏫 {currentTeacher}</div>
+          )}
           {agentFilter && (
             <span className="active-filter-chip" onClick={() => setAgentFilter(null)}>
               💻 {agentFilter} &nbsp;×
@@ -851,6 +875,7 @@
             <div className="live-dot" />
             {lastSync ? `Updated ${timeAgo(lastSync/1000)}` : 'Loading…'}
           </div>
+          <a className="logout-btn" href="/logout">Logout</a>
         </div>
 
         {/* ── Summary Bar ── */}

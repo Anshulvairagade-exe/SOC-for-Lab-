@@ -14,7 +14,9 @@ import threading
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from shared.config import DB_PATH
+from shared.config import TEACHER_ACCOUNTS
 from shared.models import LogEvent, Alert
+from shared.security import hash_password, verify_password
 
 # Connection pool for thread safety
 _local = threading.local()
@@ -85,12 +87,43 @@ def init_db():
         )
     """)
 
+    # --- Dashboard teacher users ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_users (
+            username TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            created_at REAL NOT NULL
+        )
+    """)
+
+    # --- Dashboard login sessions ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_login_sessions (
+            session_id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            login_at REAL NOT NULL,
+            logout_at REAL,
+            FOREIGN KEY (username) REFERENCES teacher_users(username)
+        )
+    """)
+
     # --- Indexes for faster queries (critical for 60+ agents) ---
     cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_ack ON alerts(acknowledged)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_teacher_login_username ON teacher_login_sessions(username)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_teacher_login_login_at ON teacher_login_sessions(login_at DESC)")
+
+    # Seed initial teacher accounts once (9 default accounts, or custom env-configured list).
+    existing_teacher_count = cur.execute("SELECT COUNT(*) as c FROM teacher_users").fetchone()["c"]
+    if existing_teacher_count == 0:
+        now = time.time()
+        cur.executemany(
+            "INSERT INTO teacher_users (username, password_hash, created_at) VALUES (?, ?, ?)",
+            [(username, hash_password(password), now) for username, password in TEACHER_ACCOUNTS],
+        )
 
     conn.commit()
     conn.close(); _local.conn = None
@@ -248,3 +281,57 @@ def prune_old_data(log_days: int = 7, alert_days: int = 30) -> dict:
         "logs": deleted_logs,
         "alerts": deleted_alerts,
     }
+
+
+def authenticate_teacher(username: str, password: str) -> bool:
+    """Validate a dashboard teacher username/password pair."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT password_hash FROM teacher_users WHERE username = ?",
+        (username,),
+    ).fetchone()
+    conn.close(); _local.conn = None
+    if not row:
+        return False
+    return verify_password(password, row["password_hash"])
+
+
+def create_teacher_login_session(session_id: str, username: str):
+    """Store a successful teacher dashboard login session."""
+    conn = get_connection()
+    conn.execute(
+        """
+        INSERT INTO teacher_login_sessions (session_id, username, login_at)
+        VALUES (?, ?, ?)
+        """,
+        (session_id, username, time.time()),
+    )
+    conn.commit()
+    conn.close(); _local.conn = None
+
+
+def close_teacher_login_session(session_id: str):
+    """Mark a teacher dashboard session as logged out."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE teacher_login_sessions SET logout_at = ? WHERE session_id = ? AND logout_at IS NULL",
+        (time.time(), session_id),
+    )
+    conn.commit()
+    conn.close(); _local.conn = None
+
+
+def get_recent_teacher_access(limit: int = 50) -> list[dict]:
+    """Fetch recent teacher dashboard access sessions."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT session_id, username, login_at, logout_at
+        FROM teacher_login_sessions
+        ORDER BY login_at DESC
+        LIMIT ?
+        """,
+        (max(1, int(limit)),),
+    ).fetchall()
+    conn.close(); _local.conn = None
+    return [dict(r) for r in rows]

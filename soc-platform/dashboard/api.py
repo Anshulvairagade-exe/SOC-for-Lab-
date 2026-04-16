@@ -1,5 +1,6 @@
 import os
 import sys
+import secrets
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,7 +11,13 @@ import uvicorn
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from database.db import init_db, get_all_agents, get_alerts, get_alert_counts, acknowledge_alert, get_logs
 from database.db import prune_old_data
-from shared.config import API_HOST, API_PORT, DASHBOARD_PASSWORD, DASHBOARD_SESSION_SECRET
+from database.db import (
+    authenticate_teacher,
+    create_teacher_login_session,
+    close_teacher_login_session,
+    get_recent_teacher_access,
+)
+from shared.config import API_HOST, API_PORT, DASHBOARD_SESSION_SECRET
 from dashboard.teacher_insights import build_teacher_insights, answer_teacher_query, build_class_period_report_html
 
 @asynccontextmanager
@@ -73,7 +80,8 @@ def _login_page(error: str = "") -> str:
           <div class=\"muted\">Authorized staff access only</div>
           {error_html}
           <form method=\"post\" action=\"/login\">
-            <input type=\"password\" name=\"password\" placeholder=\"Enter password\" required />
+            <input type=\"text\" name=\"username\" placeholder=\"Teacher username\" required />
+            <input type=\"password\" name=\"password\" placeholder=\"Teacher password\" required />
             <button type=\"submit\">Sign In</button>
           </form>
         </div>
@@ -91,15 +99,23 @@ def login_page(request: Request):
 
 
 @app.post("/login")
-def do_login(request: Request, password: str = Form(...)):
-    if password == DASHBOARD_PASSWORD:
+def do_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    username = username.strip()
+    if authenticate_teacher(username=username, password=password):
+        login_session_id = secrets.token_hex(16)
         request.session["auth_ok"] = True
+        request.session["teacher_username"] = username
+        request.session["teacher_session_id"] = login_session_id
+        create_teacher_login_session(session_id=login_session_id, username=username)
         return RedirectResponse(url="/", status_code=302)
-    return HTMLResponse(_login_page("Invalid password"), status_code=401)
+    return HTMLResponse(_login_page("Invalid username or password"), status_code=401)
 
 
 @app.get("/logout")
 def logout(request: Request):
+    login_session_id = request.session.get("teacher_session_id")
+    if login_session_id:
+        close_teacher_login_session(login_session_id)
     request.session.clear()
     return RedirectResponse(url="/login", status_code=302)
 
@@ -141,6 +157,22 @@ def api_get_logs(request: Request, limit: int = 100):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
     return get_logs(limit=limit)
+
+
+@app.get("/api/auth/me")
+def api_auth_me(request: Request):
+    if not _is_authenticated(request):
+        return HTMLResponse("Unauthorized", status_code=401)
+    return {
+        "username": request.session.get("teacher_username"),
+    }
+
+
+@app.get("/api/auth/access-log")
+def api_teacher_access_log(request: Request, limit: int = Query(50)):
+    if not _is_authenticated(request):
+        return HTMLResponse("Unauthorized", status_code=401)
+    return get_recent_teacher_access(limit=limit)
 
 
 @app.get("/api/insights/teacher")
