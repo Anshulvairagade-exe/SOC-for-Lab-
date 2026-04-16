@@ -67,7 +67,7 @@ TEACHER_ACCOUNTS = _parse_teacher_accounts(os.getenv("TEACHER_ACCOUNTS"))
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "soc_platform.db"))        # SQLite file path
 
 # --- Agent ---
-AGENT_SEND_INTERVAL = int(os.getenv("AGENT_SEND_INTERVAL", "2"))            # Seconds between log batches
+AGENT_SEND_INTERVAL = int(os.getenv("AGENT_SEND_INTERVAL", "1"))            # Seconds between log checks
 AGENT_ID = os.getenv("AGENT_ID", "agent-001")             # Unique ID per machine (change per install)
 AGENT_HOSTNAME = os.getenv("AGENT_HOSTNAME", "lab-machine-1")   # Human-readable name
 AGENT_RECONNECT_DELAY = 5          # Seconds to wait before reconnecting

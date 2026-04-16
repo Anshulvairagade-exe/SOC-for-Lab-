@@ -60,7 +60,7 @@ python agent/agent.py
 ```python
 MANAGER_HOST = "0.0.0.0"          # Listen on all interfaces
 MANAGER_PORT = 9000               # Default port
-AGENT_SEND_INTERVAL = 2           # 2 seconds (good for 60 machines)
+AGENT_SEND_INTERVAL = 1           # 1 second for low-latency dashboard updates
 ```
 
 ### Each Agent (config.py):
@@ -150,7 +150,7 @@ nc -zv 192.168.245.129 9000
 ## PERFORMANCE TUNING
 
 ### For 60+ Machines:
-1. Set `AGENT_SEND_INTERVAL = 2` (not 1)
+1. Set `AGENT_SEND_INTERVAL = 1` for faster event visibility
 2. Use SSD for database
 3. Run manager with: `nice -n -10 python manager/manager.py`
 4. Consider log rotation for old alerts

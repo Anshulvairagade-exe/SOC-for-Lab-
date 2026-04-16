@@ -1,9 +1,11 @@
 import os
 import sys
 import secrets
+import json
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Request, Depends, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
@@ -180,6 +182,29 @@ def api_teacher_insights(request: Request, minutes: int = Query(60), hostname: s
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
     return build_teacher_insights(minutes=minutes, hostname=hostname)
+
+
+@app.get("/api/insights/teacher/stream")
+async def api_teacher_insights_stream(request: Request, minutes: int = Query(60), hostname: str = None):
+    if not _is_authenticated(request):
+        return HTMLResponse("Unauthorized", status_code=401)
+
+    async def event_generator():
+        while True:
+            if await request.is_disconnected():
+                break
+            payload = build_teacher_insights(minutes=minutes, hostname=hostname)
+            yield f"data: {json.dumps(payload)}\n\n"
+            await asyncio.sleep(3)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.get("/api/insights/ask")

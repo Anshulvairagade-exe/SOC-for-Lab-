@@ -743,17 +743,13 @@
     /* ─ Fetch ─ */
     const fetchData = useCallback(async () => {
       try {
-        let url = `${API_BASE}/alerts?limit=500`;
+        let url = `${API_BASE}/alerts?limit=300`;
         if (dateFilter) url += '&date=' + encodeURIComponent(dateFilter);
 
-        let insightUrl = `${API_BASE}/insights/teacher?minutes=${insightMinutes}`;
-        if (agentFilter) insightUrl += '&hostname=' + encodeURIComponent(agentFilter);
-
-        const [alertsData, agentsData, statsData, insightData, authData] = await Promise.all([
+        const [alertsData, agentsData, statsData, authData] = await Promise.all([
           fetch(url).then(r => r.json()),
           fetch(`${API_BASE}/agents`).then(r => r.json()),
           fetch(`${API_BASE}/alerts/stats`).then(r => r.json()),
-          fetch(insightUrl).then(r => r.json()),
           fetch(`${API_BASE}/auth/me`).then(r => r.json()),
         ]);
 
@@ -773,17 +769,37 @@
         setAlerts(alertsData);
         setAgents(agentsData);
         setStats(statsData);
-        setInsights(insightData);
         setCurrentTeacher(authData?.username || '');
         setLastSync(Date.now());
       } catch(e) { console.error('Fetch error:', e); }
-    }, [dateFilter, agentFilter, insightMinutes]);
+    }, [dateFilter]);
 
     useEffect(() => {
       fetchData();
-      const iv = setInterval(fetchData, 15000);
+      const iv = setInterval(fetchData, 5000);
       return () => clearInterval(iv);
     }, [fetchData]);
+
+    useEffect(() => {
+      let streamUrl = `${API_BASE}/insights/teacher/stream?minutes=${insightMinutes}`;
+      if (agentFilter) streamUrl += `&hostname=${encodeURIComponent(agentFilter)}`;
+
+      const es = new EventSource(streamUrl);
+      es.onmessage = (evt) => {
+        try {
+          const payload = JSON.parse(evt.data);
+          setInsights(payload);
+          setLastSync(Date.now());
+        } catch (e) {
+          console.error('Insight stream parse error:', e);
+        }
+      };
+      es.onerror = () => {
+        // EventSource auto-reconnects by default
+      };
+
+      return () => es.close();
+    }, [insightMinutes, agentFilter]);
 
     /* ─ Actions ─ */
     const handleAck = async (id, e) => {

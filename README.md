@@ -143,6 +143,7 @@ Rule format:
 | POST | `/api/alerts/{id}/acknowledge` | Acknowledge an alert |
 | GET | `/api/logs` | Recent logs |
 | GET | `/api/insights/teacher` | Teacher AI summary/analytics |
+| GET | `/api/insights/teacher/stream` | Real-time teacher insights stream (SSE) |
 | GET | `/api/insights/ask` | Ask teacher chatbot (summary/AI/gaming) |
 | GET | `/api/reports/class-period` | One-click HTML report card |
 | POST | `/api/maintenance/prune` | Prune old logs/alerts |
