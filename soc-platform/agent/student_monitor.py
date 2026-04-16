@@ -839,7 +839,7 @@ class ScreenshotMonitor:
             "gnome-screenshot", "scrot", "flameshot", "spectacle",
             "xfce4-screenshooter", "shutter", "kazam", "peek",
             "import",  # ImageMagick
-            "maim", "screencapture"
+            "maim", "screencapture", "ksnip", "grim", "slurp", "gnome-shell-screenshot"
         ]
         self._last_check = time.time()
         self._known_screenshots = set()
@@ -854,6 +854,7 @@ class ScreenshotMonitor:
             f"{home}/Pictures",
             f"{home}/Pictures/Screenshots",
             f"{home}/Screenshots",
+            f"{home}/Downloads",
             f"{home}/Desktop",
             f"{home}",
             "/tmp",
@@ -878,7 +879,7 @@ class ScreenshotMonitor:
         # Common screenshot naming patterns
         screenshot_patterns = [
             "screenshot", "screen shot", "capture", "scrot",
-            "flameshot", "spectacle", "shutter"
+            "flameshot", "spectacle", "shutter", "snip", "printscreen", "screen_shot"
         ]
         # Must be an image file
         image_extensions = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp")

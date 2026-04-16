@@ -417,9 +417,16 @@
       padding: 4px 12px; border-radius: 20px; cursor: pointer;
     }
 
+    .bottom-ai {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0 32px 24px;
+    }
+
     @media (max-width: 1024px) {
       main { grid-template-columns: 1fr; }
       .stat-grid { grid-template-columns: repeat(2,1fr); }
+      .bottom-ai { padding: 0 16px 18px; }
     }
   </style>
 </head>
@@ -1074,140 +1081,142 @@
               ))}
             </div>
 
-            {/* AI Chatbot */}
-            <div className="card" style={{padding:'16px 18px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div className="card-title" style={{marginBottom:0}}>🤖 AI Chatbot</div>
-                <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <select
-                    value={insightMinutes}
-                    onChange={e=>setInsightMinutes(parseInt(e.target.value,10))}
-                    style={{background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'4px 8px',fontSize:12}}
-                  >
-                    <option value={30}>30m</option>
-                    <option value={60}>1h</option>
-                    <option value={180}>3h</option>
-                    <option value={480}>8h</option>
-                  </select>
-                  <button
-                    className="ack-btn"
-                    style={{padding:'5px 8px',fontSize:11}}
-                    onClick={() => {
-                      let url = `${API_BASE}/reports/class-period?minutes=${insightMinutes}`;
-                      if (agentFilter) url += `&hostname=${encodeURIComponent(agentFilter)}`;
-                      window.open(url, '_blank');
-                    }}
-                    title="One-click printable class report"
-                  >
-                    📝 Report Card
-                  </button>
-                </div>
+          </div>
+        </main>
+
+        <section className="bottom-ai">
+          <div className="card" style={{padding:'16px 18px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+              <div className="card-title" style={{marginBottom:0}}>🤖 AI Chatbot</div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <select
+                  value={insightMinutes}
+                  onChange={e=>setInsightMinutes(parseInt(e.target.value,10))}
+                  style={{background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'4px 8px',fontSize:12}}
+                >
+                  <option value={30}>30m</option>
+                  <option value={60}>1h</option>
+                  <option value={180}>3h</option>
+                  <option value={480}>8h</option>
+                </select>
+                <button
+                  className="ack-btn"
+                  style={{padding:'5px 8px',fontSize:11}}
+                  onClick={() => {
+                    let url = `${API_BASE}/reports/class-period?minutes=${insightMinutes}`;
+                    if (agentFilter) url += `&hostname=${encodeURIComponent(agentFilter)}`;
+                    window.open(url, '_blank');
+                  }}
+                  title="One-click printable class report"
+                >
+                  📝 Report Card
+                </button>
               </div>
-              {!insights || !insights.hosts || insights.hosts.length === 0 ? (
-                <div style={{fontSize:12,color:'var(--text-3)'}}>No recent activity in selected window.</div>
-              ) : (
-                <div>
-                  <div style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>{insights.class_overview}</div>
-                  {insights.class_signals && (
-                    <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
-                      <span className="src-badge">🤖 AI: {insights.class_signals.ai_usage_machines || 0}</span>
-                      <span className="src-badge">🎮 Games: {insights.class_signals.gaming_machines || 0}</span>
-                      <span className="src-badge">📸 Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
-                      <span className="src-badge">🔌 USB: {insights.class_signals.usb_machines || 0}</span>
-                      <span className="src-badge">🚫 Blocked: {insights.class_signals.blocked_browsing_machines || 0}</span>
-                    </div>
-                  )}
+            </div>
+            {!insights || !insights.hosts || insights.hosts.length === 0 ? (
+              <div style={{fontSize:12,color:'var(--text-3)'}}>No recent activity in selected window.</div>
+            ) : (
+              <div>
+                <div style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>{insights.class_overview}</div>
+                {insights.class_signals && (
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                    <span className="src-badge">🤖 AI: {insights.class_signals.ai_usage_machines || 0}</span>
+                    <span className="src-badge">🎮 Games: {insights.class_signals.gaming_machines || 0}</span>
+                    <span className="src-badge">📸 Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
+                    <span className="src-badge">🔌 USB: {insights.class_signals.usb_machines || 0}</span>
+                    <span className="src-badge">🚫 Blocked: {insights.class_signals.blocked_browsing_machines || 0}</span>
+                  </div>
+                )}
 
-                  {insights.action_queue && insights.action_queue.length > 0 && (
-                    <div style={{marginBottom:10}}>
-                      <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Teacher action queue</div>
-                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                        {insights.action_queue.slice(0,3).map((q, i) => (
-                          <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                            <strong>{q.hostname}</strong> · {q.priority} · {q.reason}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{fontSize:13,fontWeight:600,color:'var(--text)',marginBottom:8}}>
-                    {insights.hosts[0].brief}
-                  </div>
-                  <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top sites</div>
-                  <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
-                    {(insights.hosts[0].top_domains || []).slice(0,3).join(', ') || '—'}
-                  </div>
-                  <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top commands</div>
-                  <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
-                    {(insights.hosts[0].top_commands || []).slice(0,3).join(' | ') || '—'}
-                  </div>
-                  <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Most important events</div>
-                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                    {(insights.hosts[0].important_events || []).slice(0,3).map((ev, idx) => (
-                      <div key={idx} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                        <span style={{fontWeight:700,marginRight:6}}>{ev.severity}</span>
-                        <span>{humaniseRule(ev.rule_name)}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {insights.hosts[0].recommendations && insights.hosts[0].recommendations.length > 0 && (
-                    <div style={{marginTop:10}}>
-                      <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Recommended teacher actions</div>
-                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                        {(insights.hosts[0].recommendations || []).slice(0,3).map((rec, i) => (
-                          <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                            • {rec}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div style={{marginTop:12,fontSize:11,color:'var(--text-3)',marginBottom:6}}>Ask AI chatbot</div>
-                  <div style={{display:'flex',gap:6,marginBottom:6}}>
-                    <input
-                      type="text"
-                      value={askQuery}
-                      onChange={e=>setAskQuery(e.target.value)}
-                      placeholder="e.g. anyone used AI?"
-                      style={{flex:1,background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 9px',fontSize:12}}
-                      onKeyDown={e => { if (e.key === 'Enter') askTeacher(); }}
-                    />
-                    <button
-                      onClick={askTeacher}
-                      disabled={askLoading}
-                      className="ack-btn"
-                      style={{padding:'6px 10px'}}
-                    >
-                      {askLoading ? '...' : 'Ask'}
-                    </button>
-                  </div>
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-                    <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('summary')}>Summary</button>
-                    <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('anyone used ai?')}>AI usage</button>
-                    <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('who was playing games?')}>Gaming</button>
-                  </div>
-                  {askResult && (
-                    <div style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                      <div style={{fontWeight:600,marginBottom:4}}>Answer: {askResult.answer}</div>
-                      {(askResult.matches || []).slice(0,3).map((m, i) => (
-                        <div key={i} style={{fontSize:11,color:'var(--text-2)',marginTop:3}}>
-                          • {m.hostname}
-                          {m.alert_count !== undefined ? ` | Alerts: ${m.alert_count}` : ''}
-                          {m.priority ? ` | ${m.priority}` : ''}
-                          {m.ai_domains ? ` | AI: ${m.ai_domains.join(', ')}` : ''}
-                          {m.game_domains ? ` | Games: ${m.game_domains.join(', ')}` : ''}
+                {insights.action_queue && insights.action_queue.length > 0 && (
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Teacher action queue</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      {insights.action_queue.slice(0,3).map((q, i) => (
+                        <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                          <strong>{q.hostname}</strong> · {q.priority} · {q.reason}
                         </div>
                       ))}
                     </div>
-                  )}
+                  </div>
+                )}
+
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text)',marginBottom:8}}>
+                  {insights.hosts[0].brief}
                 </div>
-              )}
-            </div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top sites</div>
+                <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
+                  {(insights.hosts[0].top_domains || []).slice(0,3).join(', ') || '—'}
+                </div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top commands</div>
+                <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
+                  {(insights.hosts[0].top_commands || []).slice(0,3).join(' | ') || '—'}
+                </div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Most important events</div>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {(insights.hosts[0].important_events || []).slice(0,3).map((ev, idx) => (
+                    <div key={idx} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                      <span style={{fontWeight:700,marginRight:6}}>{ev.severity}</span>
+                      <span>{humaniseRule(ev.rule_name)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {insights.hosts[0].recommendations && insights.hosts[0].recommendations.length > 0 && (
+                  <div style={{marginTop:10}}>
+                    <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Recommended teacher actions</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      {(insights.hosts[0].recommendations || []).slice(0,3).map((rec, i) => (
+                        <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                          • {rec}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{marginTop:12,fontSize:11,color:'var(--text-3)',marginBottom:6}}>Ask AI chatbot</div>
+                <div style={{display:'flex',gap:6,marginBottom:6}}>
+                  <input
+                    type="text"
+                    value={askQuery}
+                    onChange={e=>setAskQuery(e.target.value)}
+                    placeholder="e.g. anyone used AI?"
+                    style={{flex:1,background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 9px',fontSize:12}}
+                    onKeyDown={e => { if (e.key === 'Enter') askTeacher(); }}
+                  />
+                  <button
+                    onClick={askTeacher}
+                    disabled={askLoading}
+                    className="ack-btn"
+                    style={{padding:'6px 10px'}}
+                  >
+                    {askLoading ? '...' : 'Ask'}
+                  </button>
+                </div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                  <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('summary')}>Summary</button>
+                  <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('anyone used ai?')}>AI usage</button>
+                  <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('who was playing games?')}>Gaming</button>
+                </div>
+                {askResult && (
+                  <div style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
+                    <div style={{fontWeight:600,marginBottom:4}}>Answer: {askResult.answer}</div>
+                    {(askResult.matches || []).slice(0,3).map((m, i) => (
+                      <div key={i} style={{fontSize:11,color:'var(--text-2)',marginTop:3}}>
+                        • {m.hostname}
+                        {m.alert_count !== undefined ? ` | Alerts: ${m.alert_count}` : ''}
+                        {m.priority ? ` | ${m.priority}` : ''}
+                        {m.ai_domains ? ` | AI: ${m.ai_domains.join(', ')}` : ''}
+                        {m.game_domains ? ` | Games: ${m.game_domains.join(', ')}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </main>
+        </section>
 
         {/* ── Toasts ── */}
         <div className="toast-wrapper">
