@@ -8,6 +8,7 @@ import ssl
 import socket
 import hashlib
 import secrets
+import hmac
 import jwt
 import json
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,9 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import base64
 import os
+
+PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = int(os.getenv("PASSWORD_HASH_ITERATIONS", "390000"))
 
 class CertificateManager:
     """Manages TLS certificates for secure communication"""
@@ -217,19 +221,36 @@ class SecureSocket:
         return context.wrap_socket(sock, server_hostname=host)
 
 def hash_password(password: str) -> str:
-    """Hash password with SHA-256 and salt"""
+    """Hash password using PBKDF2-SHA256."""
     salt = secrets.token_hex(16)
-    pwdhash = hashlib.sha256((password + salt).encode()).hexdigest()
-    return f"{salt}${pwdhash}"
+    pwdhash = base64.b64encode(
+        hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            PASSWORD_HASH_ITERATIONS,
+        )
+    ).decode("ascii").strip()
+    return f"{PASSWORD_HASH_ALGORITHM}${PASSWORD_HASH_ITERATIONS}${salt}${pwdhash}"
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify password against stored hash"""
+    """Verify password against both PBKDF2 and legacy salted-SHA256 hashes."""
     try:
-        salt, pwdhash = stored_hash.split('$')
-        check_hash = hashlib.sha256((password + salt).encode()).hexdigest()
-        return check_hash == pwdhash
-    except Exception as e:
-        return False
+        if stored_hash.startswith(f"{PASSWORD_HASH_ALGORITHM}$"):
+            _, iterations, salt, pwdhash = stored_hash.split("$", 3)
+            check_hash = base64.b64encode(
+                hashlib.pbkdf2_hmac(
+                    "sha256",
+                    password.encode("utf-8"),
+                    salt.encode("utf-8"),
+                    int(iterations),
+                )
+            ).decode("ascii").strip()
+            return hmac.compare_digest(check_hash, pwdhash)
 
-# Fix missing import
+        salt, pwdhash = stored_hash.split("$", 1)
+        check_hash = hashlib.sha256((password + salt).encode("utf-8")).hexdigest()
+        return hmac.compare_digest(check_hash, pwdhash)
+    except Exception:
+        return False
 

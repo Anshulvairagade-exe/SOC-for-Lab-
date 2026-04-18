@@ -6,6 +6,7 @@
   <title>Lab Monitor – Staff Dashboard</title>
   <meta name="description" content="School lab monitoring dashboard for staff. View machine status and alerts at a glance.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
   <!-- React & Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -127,7 +128,7 @@
       display: flex; align-items: center; gap: 28px;
     }
     .sum-item { display: flex; align-items: center; gap: 10px; }
-    .sum-icon { font-size: 20px; }
+    .sum-icon { font-size: 18px; width: 20px; display:flex; align-items:center; justify-content:center; }
     .sum-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
     .sum-label { font-size: 11px; color: var(--text-2); margin-top: 2px; letter-spacing: .2px; }
     .sum-sep   { width: 1px; height: 36px; background: var(--border); }
@@ -352,7 +353,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
     }
-    .detail-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+    .detail-icon { font-size: 14px; width: 16px; flex-shrink: 0; margin-top: 2px; color: var(--text-2); }
     .detail-key  { font-size: 11px; color: var(--text-3); font-weight: 500; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .3px; }
     .detail-val  { font-size: 13px; color: var(--text); font-weight: 500; word-break: break-word; line-height: 1.4; }
 
@@ -425,7 +426,7 @@
     .hostname-link { color: var(--accent); cursor: pointer; font-weight: 500; }
     .hostname-link:hover { text-decoration: underline; }
     .empty-state { padding: 60px 20px; text-align: center; color: var(--text-3); }
-    .empty-icon  { font-size: 44px; margin-bottom: 12px; }
+    .empty-icon  { font-size: 40px; margin-bottom: 12px; color: var(--low); }
     .empty-title { font-size: 15px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
     .empty-desc  { font-size: 13px; }
     .active-filter-chip {
@@ -440,6 +441,9 @@
       margin: 0 auto;
       padding: 0 32px 24px;
     }
+
+    .icon-inline { margin-right: 6px; }
+    .icon-tight { margin-right: 4px; }
 
     @media (max-width: 1024px) {
       main { grid-template-columns: 1fr; }
@@ -658,6 +662,64 @@
     return m[t] || t;
   }
 
+  function iconClass(icon, label='') {
+    const map = {
+      '🕐': 'fa-clock',
+      '🌐': 'fa-globe',
+      '👤': 'fa-user',
+      '🔗': 'fa-link',
+      '🧭': 'fa-compass',
+      '🌍': 'fa-earth-americas',
+      '🔍': 'fa-magnifying-glass',
+      '▶️': 'fa-circle-play',
+      '📝': 'fa-file-lines',
+      '🔢': 'fa-hashtag',
+      '⚡': 'fa-bolt',
+      '📦': 'fa-box',
+      '💻': 'fa-desktop',
+      '📋': 'fa-clipboard-list',
+      '🚀': 'fa-rocket',
+      '💬': 'fa-terminal',
+      '🛑': 'fa-circle-stop',
+      '🖥️': 'fa-window-maximize',
+      '⚙️': 'fa-gear',
+      '📸': 'fa-camera',
+      '🛠️': 'fa-screwdriver-wrench',
+      '🖼️': 'fa-image',
+      '📁': 'fa-folder',
+      '🔌': 'fa-plug',
+      '🛡️': 'fa-shield-halved',
+      '🤖': 'fa-robot',
+      '🎮': 'fa-gamepad',
+      '🚫': 'fa-ban',
+      '🔔': 'fa-bell',
+      '🔴': 'fa-circle',
+      '⚠️': 'fa-triangle-exclamation',
+      '✅': 'fa-circle-check',
+      '📡': 'fa-satellite-dish',
+      '📖': 'fa-book-open',
+      '👩‍🏫': 'fa-chalkboard-user',
+      '🚨': 'fa-triangle-exclamation',
+    };
+    if (icon && map[icon]) return map[icon];
+
+    const text = `${icon || ''} ${label || ''}`.toLowerCase();
+    if (text.includes('browser')) return 'fa-globe';
+    if (text.includes('terminal')) return 'fa-terminal';
+    if (text.includes('window')) return 'fa-window-maximize';
+    if (text.includes('screenshot')) return 'fa-camera';
+    if (text.includes('process')) return 'fa-rocket';
+    if (text.includes('usb')) return 'fa-plug';
+    if (text.includes('system')) return 'fa-shield-halved';
+    if (text.includes('machine') || text.includes('host')) return 'fa-desktop';
+    if (text.includes('rule') || text.includes('detail')) return 'fa-clipboard-list';
+    return 'fa-circle-info';
+  }
+
+  function Icon({ icon, label, className = '' }) {
+    return <i className={`fa-solid ${iconClass(icon, label)} ${className}`.trim()} aria-hidden="true"></i>;
+  }
+
   // Determine source category from log content to show a readable badge
   function detectSource(log, ruleName) {
     if (!log && !ruleName) return { icon: '📋', label: 'Event' };
@@ -678,7 +740,7 @@
       <div className={`toast ${t.severity}`} onClick={onClose}>
         <div className="toast-top">
           <span className={`toast-level ${t.severity}`}>{t.severity}</span>
-          <span className="toast-machine">💻 {t.hostname}</span>
+          <span className="toast-machine"><Icon icon="💻" className="icon-tight" />{t.hostname}</span>
           <span className="toast-close">✕</span>
         </div>
         <div className="toast-body">{humaniseRule(t.rule_name)}</div>
@@ -705,7 +767,7 @@
       <div className="detail-grid">
         {all.map((f, i) => (
           <div key={i} className="detail-field">
-            <div className="detail-icon">{f.icon}</div>
+            <div className="detail-icon"><Icon icon={f.icon} label={f.label} /></div>
             <div>
               <div className="detail-key">{f.label}</div>
               <div className="detail-val">{f.value}</div>
@@ -873,18 +935,18 @@
       <div>
         {/* ── Header ── */}
         <div className="header">
-          <div className="logo-icon">🖥️</div>
+          <div className="logo-icon"><Icon icon="🖥️" /></div>
           <div>
             <div className="header-title">Lab Monitor</div>
             <div className="header-subtitle">Staff Dashboard</div>
           </div>
           <div className="header-spacer" />
           {currentTeacher && (
-            <div className="teacher-pill">👩‍🏫 {currentTeacher}</div>
+            <div className="teacher-pill"><Icon icon="👩‍🏫" className="icon-tight" />{currentTeacher}</div>
           )}
           {agentFilter && (
             <span className="active-filter-chip" onClick={() => setAgentFilter(null)}>
-              💻 {agentFilter} &nbsp;×
+              <Icon icon="💻" className="icon-tight" />{agentFilter} &nbsp;×
             </span>
           )}
           <div className="refresh-pill">
@@ -897,7 +959,7 @@
         {/* ── Summary Bar ── */}
         <div className="summary-bar">
           <div className="sum-item">
-            <div className="sum-icon">🖥️</div>
+            <div className="sum-icon"><Icon icon="🖥️" /></div>
             <div>
               <div className="sum-value">{onlineMachines}</div>
               <div className="sum-label">Machines Online</div>
@@ -905,7 +967,7 @@
           </div>
           <div className="sum-sep" />
           <div className="sum-item">
-            <div className="sum-icon">📋</div>
+            <div className="sum-icon"><Icon icon="📋" /></div>
             <div>
               <div className="sum-value">{alerts.length}</div>
               <div className="sum-label">Alerts Today</div>
@@ -913,7 +975,7 @@
           </div>
           <div className="sum-sep" />
           <div className="sum-item">
-            <div className="sum-icon">🔔</div>
+            <div className="sum-icon"><Icon icon="🔔" /></div>
             <div>
               <div className="sum-value">{unackedCount}</div>
               <div className="sum-label">Unacknowledged</div>
@@ -922,7 +984,7 @@
           {stats.CRITICAL > 0 && <>
             <div className="sum-sep" />
             <div className="sum-item">
-              <div className="sum-icon">🔴</div>
+              <div className="sum-icon"><Icon icon="🔴" /></div>
               <div>
                 <div className="sum-value" style={{color:'var(--critical)'}}>{stats.CRITICAL}</div>
                 <div className="sum-label">Critical — Act Now</div>
@@ -969,17 +1031,17 @@
               <div className="tab-group">
                 <button className={`tab-btn ${tabFilter==='all'?'active':''}`}           onClick={()=>setTabFilter('all')}>All</button>
                 <button className={`tab-btn ${tabFilter==='unacked'?'active':''}`}        onClick={()=>setTabFilter('unacked')}>Unacknowledged</button>
-                <button className={`tab-btn ${tabFilter==='high_critical'?'active':''}`} onClick={()=>setTabFilter('high_critical')}>⚠️ High &amp; Critical</button>
+                <button className={`tab-btn ${tabFilter==='high_critical'?'active':''}`} onClick={()=>setTabFilter('high_critical')}><Icon icon="⚠️" className="icon-inline" />High &amp; Critical</button>
               </div>
               <div className="toolbar-spacer" />
               <input type="date" className="date-input" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} title="Filter by date" />
-              <input type="text" className="search-input" placeholder="🔍  Search alerts…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} />
+              <input type="text" className="search-input" placeholder="Search alerts..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} />
             </div>
 
             {/* Alert Table */}
             <div className="card">
               <div className="card-header">
-                <span className="card-title">🚨 Alert Feed</span>
+                <span className="card-title"><Icon icon="🚨" className="icon-inline" />Alert Feed</span>
                 <span className="card-count">{filtered.length} alert{filtered.length!==1?'s':''}</span>
               </div>
               <div className="alert-list">
@@ -1000,7 +1062,7 @@
                       <tr>
                         <td colSpan="7">
                           <div className="empty-state">
-                            <div className="empty-icon">✅</div>
+                            <div className="empty-icon"><Icon icon="✅" /></div>
                             <div className="empty-title">{dateFilter ? 'No alerts on this date' : 'Nothing to show'}</div>
                             <div className="empty-desc">
                               {dateFilter ? `No activity was flagged on ${dateFilter}.` : 'No alerts match the current filter.'}
@@ -1016,7 +1078,7 @@
                             <tr className="alert-row" onClick={() => toggleRow(a.id)}>
                               <td style={{color:'var(--text-3)',whiteSpace:'nowrap',fontSize:12}}>{fmtFull(a.timestamp)}</td>
                               <td><span className={`sev-badge ${a.severity}`}>{a.severity}</span></td>
-                              <td><span className="src-badge">{src.icon} {src.label}</span></td>
+                              <td><span className="src-badge"><Icon icon={src.icon} label={src.label} className="icon-tight" />{src.label}</span></td>
                               <td style={{fontWeight:500}}>{humaniseRule(a.rule_name)}</td>
                               <td>
                                 <span className="hostname-link" onClick={e=>{e.stopPropagation();setAgentFilter(a.hostname);}} title="Filter by this machine">
@@ -1025,7 +1087,7 @@
                               </td>
                               <td>
                                 <button className="ack-btn" onClick={e=>handleAck(a.id,e)} title="Mark as acknowledged">
-                                  ✓ Acknowledge
+                                  <Icon icon="✅" className="icon-tight" />Acknowledge
                                 </button>
                               </td>
                               <td style={{textAlign:'center'}}>
@@ -1052,7 +1114,7 @@
             {/* Agent Cards */}
             <div className="card">
               <div className="card-header">
-                <span className="card-title">🖥️ Lab Machines</span>
+                <span className="card-title"><Icon icon="🖥️" className="icon-inline" />Lab Machines</span>
                 <span className="card-count">{agents.length} total</span>
               </div>
               <div className="agents-grid">
@@ -1086,7 +1148,7 @@
 
             {/* What's being monitored */}
             <div className="card" style={{padding:'16px 18px'}}>
-              <div className="card-title" style={{marginBottom:12}}>📡 What We Monitor</div>
+              <div className="card-title" style={{marginBottom:12}}><Icon icon="📡" className="icon-inline" />What We Monitor</div>
               {[
                 { icon:'🌐', label:'Browser Activity',    desc:'Sites visited, searches' },
                 { icon:'🚀', label:'App Launches',        desc:'Programs opened or closed' },
@@ -1097,7 +1159,7 @@
                 { icon:'🛡️', label:'System Events',       desc:'Logins, errors, security' },
               ].map(({ icon, label, desc }) => (
                 <div key={label} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                  <span style={{fontSize:16,width:22,textAlign:'center'}}>{icon}</span>
+                  <span style={{fontSize:16,width:22,textAlign:'center'}}><Icon icon={icon} label={label} /></span>
                   <div>
                     <div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{label}</div>
                     <div style={{fontSize:11,color:'var(--text-3)'}}>{desc}</div>
@@ -1108,7 +1170,7 @@
 
             {/* Severity Guide */}
             <div className="card" style={{padding:'16px 18px'}}>
-              <div className="card-title" style={{marginBottom:12}}>📖 Severity Guide</div>
+              <div className="card-title" style={{marginBottom:12}}><Icon icon="📖" className="icon-inline" />Severity Guide</div>
               {[
                 { sev:'CRITICAL', txt:'Needs immediate attention' },
                 { sev:'HIGH',     txt:'Should be reviewed soon'   },
@@ -1128,7 +1190,7 @@
         <section className="bottom-ai">
           <div className="card" style={{padding:'16px 18px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-              <div className="card-title" style={{marginBottom:0}}>🤖 AI Chatbot</div>
+              <div className="card-title" style={{marginBottom:0}}><Icon icon="🤖" className="icon-inline" />AI Chatbot</div>
               <div style={{display:'flex',alignItems:'center',gap:6}}>
                 <select
                   value={insightMinutes}
@@ -1150,7 +1212,7 @@
                   }}
                   title="One-click printable class report"
                 >
-                  📝 Report Card
+                  <Icon icon="📝" className="icon-tight" />Report Card
                 </button>
               </div>
             </div>
@@ -1161,11 +1223,11 @@
                 <div style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>{insights.class_overview}</div>
                 {insights.class_signals && (
                   <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
-                    <span className="src-badge">🤖 AI: {insights.class_signals.ai_usage_machines || 0}</span>
-                    <span className="src-badge">🎮 Games: {insights.class_signals.gaming_machines || 0}</span>
-                    <span className="src-badge">📸 Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
-                    <span className="src-badge">🔌 USB: {insights.class_signals.usb_machines || 0}</span>
-                    <span className="src-badge">🚫 Blocked: {insights.class_signals.blocked_browsing_machines || 0}</span>
+                    <span className="src-badge"><Icon icon="🤖" className="icon-tight" />AI: {insights.class_signals.ai_usage_machines || 0}</span>
+                    <span className="src-badge"><Icon icon="🎮" className="icon-tight" />Games: {insights.class_signals.gaming_machines || 0}</span>
+                    <span className="src-badge"><Icon icon="📸" className="icon-tight" />Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
+                    <span className="src-badge"><Icon icon="🔌" className="icon-tight" />USB: {insights.class_signals.usb_machines || 0}</span>
+                    <span className="src-badge"><Icon icon="🚫" className="icon-tight" />Blocked: {insights.class_signals.blocked_browsing_machines || 0}</span>
                   </div>
                 )}
 

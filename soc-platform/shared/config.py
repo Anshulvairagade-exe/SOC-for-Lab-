@@ -22,6 +22,9 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # --- Dashboard Access Control ---
 DASHBOARD_SESSION_SECRET = os.getenv("DASHBOARD_SESSION_SECRET", "soc-dashboard-dev-secret-change")
+DASHBOARD_LOGIN_RATE_LIMIT_ATTEMPTS = int(os.getenv("DASHBOARD_LOGIN_RATE_LIMIT_ATTEMPTS", "5"))
+DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS", "120"))
+DASHBOARD_LOGIN_RATE_LIMIT_LOCKOUT_SECONDS = int(os.getenv("DASHBOARD_LOGIN_RATE_LIMIT_LOCKOUT_SECONDS", "120"))
 
 
 def _default_teacher_accounts() -> list[tuple[str, str]]:

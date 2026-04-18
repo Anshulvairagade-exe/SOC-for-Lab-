@@ -2,6 +2,8 @@
 Windows-specific monitors for USB, PowerShell, active windows, and processes.
 """
 
+import ctypes
+import hashlib
 import re
 import os
 import sys
@@ -12,6 +14,7 @@ from typing import Dict, List, Optional
 
 if sys.platform == "win32":
     import psutil
+    import win32clipboard
     import win32con
     import win32gui
     import win32process
@@ -22,6 +25,7 @@ if sys.platform == "win32":
         wmi = None
 else:
     psutil = None
+    win32clipboard = None
     wmi = None
 
 
@@ -59,6 +63,9 @@ SCREENSHOT_PROCESS_NAMES = {
     "snagitcapture.exe",
     "snagiteditor.exe",
     "snippingtool.exe",
+    "mspaint.exe",
+    "ms-screenclip.exe",
+    "clip.exe",
 }
 
 APPLICATION_CATEGORY_RULES = {
@@ -91,6 +98,12 @@ SUSPICIOUS_WINDOW_KEYWORDS = {
     "whatsapp",
     "youtube",
 }
+
+CLIPBOARD_BITMAP_FORMATS = [
+    getattr(win32con, "CF_DIBV5", 17) if sys.platform == "win32" else 17,
+    win32con.CF_DIB if sys.platform == "win32" else 8,
+    win32con.CF_BITMAP if sys.platform == "win32" else 2,
+]
 
 
 def _clean_text(value: Optional[str], fallback: str = "Unknown") -> str:
@@ -143,6 +156,17 @@ class WindowsUSBMonitor:
         if errors and not self.known_devices:
             raise RuntimeError(f"WMI USB access failed: {' | '.join(errors)}")
 
+    def _record_device(self, devices: Dict[str, Dict], device_id: str, values: Dict):
+        existing = devices.get(device_id, {})
+        merged = {**existing, **values}
+        merged["device_id"] = device_id
+        merged["description"] = _clean_text(merged.get("description"))
+        merged["status"] = _clean_text(merged.get("status"))
+        merged["manufacturer"] = _clean_text(merged.get("manufacturer"))
+        merged["class"] = _clean_text(merged.get("class"))
+        merged["is_storage"] = bool(merged.get("is_storage"))
+        devices[device_id] = merged
+
     def _get_connected_devices(self) -> tuple[Dict[str, Dict], List[str]]:
         devices: Dict[str, Dict] = {}
         errors: List[str] = []
@@ -154,8 +178,10 @@ class WindowsUSBMonitor:
                 "WHERE PNPDeviceID LIKE 'USB%' OR PNPClass = 'USB'"
             ):
                 device_id = _clean_text(getattr(entity, "PNPDeviceID", None) or getattr(entity, "DeviceID", None))
-                devices[device_id] = {
-                    "device_id": device_id,
+                self._record_device(
+                    devices,
+                    device_id,
+                    {
                     "description": _clean_text(getattr(entity, "Name", None) or getattr(entity, "Description", None)),
                     "status": _clean_text(getattr(entity, "Status", None)),
                     "manufacturer": _clean_text(getattr(entity, "Manufacturer", None)),
@@ -165,15 +191,18 @@ class WindowsUSBMonitor:
                         getattr(entity, "Description", None),
                         getattr(entity, "PNPClass", None),
                     ),
-                }
+                    },
+                )
         except Exception as exc:
             errors.append(f"Win32_PnPEntity={exc}")
 
         try:
             for disk in self.wmi.Win32_DiskDrive(InterfaceType="USB"):
                 device_id = _clean_text(getattr(disk, "PNPDeviceID", None) or getattr(disk, "DeviceID", None))
-                devices[device_id] = {
-                    "device_id": device_id,
+                self._record_device(
+                    devices,
+                    device_id,
+                    {
                     "description": _clean_text(
                         getattr(disk, "Caption", None)
                         or getattr(disk, "Model", None)
@@ -185,22 +214,49 @@ class WindowsUSBMonitor:
                     "is_storage": True,
                     "size_bytes": int(getattr(disk, "Size", 0) or 0),
                     "media_type": _clean_text(getattr(disk, "MediaType", None)),
-                }
+                    },
+                )
         except Exception as exc:
             errors.append(f"Win32_DiskDrive={exc}")
+
+        try:
+            for volume in self.wmi.Win32_LogicalDisk(DriveType=2):
+                drive_letter = _clean_text(getattr(volume, "DeviceID", None))
+                device_id = f"LOGICAL::{drive_letter}"
+                volume_name = _clean_text(getattr(volume, "VolumeName", None), fallback="")
+                description = volume_name if volume_name else drive_letter
+                self._record_device(
+                    devices,
+                    device_id,
+                    {
+                        "description": f"{description} ({drive_letter})",
+                        "status": _clean_text(getattr(volume, "Status", None)),
+                        "manufacturer": "LogicalDisk",
+                        "class": "LogicalDisk",
+                        "is_storage": True,
+                        "mount_point": drive_letter,
+                        "filesystem": _clean_text(getattr(volume, "FileSystem", None)),
+                        "volume_name": volume_name or drive_letter,
+                    },
+                )
+        except Exception as exc:
+            errors.append(f"Win32_LogicalDisk={exc}")
 
         if not devices:
             try:
                 for hub in self.wmi.Win32_USBHub():
                     device_id = _clean_text(getattr(hub, "DeviceID", None))
-                    devices[device_id] = {
-                        "device_id": device_id,
+                    self._record_device(
+                        devices,
+                        device_id,
+                        {
                         "description": _clean_text(getattr(hub, "Description", None)),
                         "status": _clean_text(getattr(hub, "Status", None)),
                         "manufacturer": _clean_text(getattr(hub, "Manufacturer", None)),
                         "class": "USBHub",
                         "is_storage": False,
-                    }
+                        },
+                    )
             except Exception as exc:
                 errors.append(f"Win32_USBHub={exc}")
 
@@ -399,6 +455,9 @@ class WindowsProcessMonitor:
         self.known_pids = {proc.pid for proc in psutil.process_iter(["pid"])}
         self.screenshot_dirs = self._get_screenshot_dirs()
         self.known_screenshot_files = set()
+        self.last_clipboard_hash = ""
+        self.last_clipboard_sequence = self._get_clipboard_sequence_number()
+        self.last_snapshot_key_down = False
         self._baseline_screenshots()
 
     def _get_screenshot_dirs(self) -> List[Path]:
@@ -435,11 +494,21 @@ class WindowsProcessMonitor:
             "snip",
             "snipping",
             "capture",
+            "clip",
+            "image",
         )
         if any(pattern in lowered for pattern in patterns):
             return True
 
-        return bool(re.search(r"\d{4}[-_]\d{2}[-_]\d{2}.*\d{2}[-_]\d{2}", lowered))
+        # Date-time pattern: YYYY-MM-DD HH-MM or similar
+        if bool(re.search(r"\d{4}[-_]\d{2}[-_]\d{2}.*\d{2}[-_]\d{2}", lowered)):
+            return True
+
+        # Microsoft Snip & Sketch naming: "Screenshot YYYY-MM-DD HHMMSS.png"
+        if bool(re.search(r"screenshot\s+\d{4}[-_]\d{2}[-_]\d{2}", lowered)):
+            return True
+
+        return False
 
     def _collect_screenshot_file_events(self) -> List[Dict]:
         events = []
@@ -465,6 +534,7 @@ class WindowsProcessMonitor:
                     except OSError:
                         continue
 
+                    print(f"[ProcessMonitor] Screenshot file detected: {file_path.name} in {directory}")
                     events.append(
                         {
                             "timestamp": datetime.now().isoformat(),
@@ -475,7 +545,8 @@ class WindowsProcessMonitor:
                             "detection_method": "file",
                         }
                     )
-            except OSError:
+            except OSError as e:
+                print(f"[ProcessMonitor] Error scanning {directory}: {e}")
                 continue
 
         return events
@@ -494,10 +565,110 @@ class WindowsProcessMonitor:
             "cmdline": " ".join(proc_info.get("cmdline") or [])[:180],
         }
 
+    def _get_clipboard_sequence_number(self) -> int:
+        try:
+            return int(ctypes.windll.user32.GetClipboardSequenceNumber())
+        except Exception:
+            return 0
+
+    def _get_foreground_window_context(self) -> Dict[str, str]:
+        try:
+            hwnd = win32gui.GetForegroundWindow()
+            if not hwnd:
+                return {}
+            window_title = win32gui.GetWindowText(hwnd).strip()
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            process_name = "Unknown"
+            try:
+                process_name = _clean_text(psutil.Process(pid).name())
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+            return {
+                "window_title": window_title or "(No title)",
+                "window_process": process_name,
+            }
+        except Exception:
+            return {}
+
+    def _read_clipboard_image(self) -> tuple[bytes | None, str | None]:
+        if win32clipboard is None:
+            return None, None
+
+        try:
+            win32clipboard.OpenClipboard()
+            for fmt in CLIPBOARD_BITMAP_FORMATS:
+                if not win32clipboard.IsClipboardFormatAvailable(fmt):
+                    continue
+                data = win32clipboard.GetClipboardData(fmt)
+                if isinstance(data, memoryview):
+                    data = data.tobytes()
+                if isinstance(data, bytearray):
+                    data = bytes(data)
+                if isinstance(data, bytes):
+                    return data, str(fmt)
+                if data:
+                    return str(data).encode("utf-8", errors="ignore"), str(fmt)
+        except Exception:
+            return None, None
+        finally:
+            try:
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pass
+
+        return None, None
+
+    def _detect_printscreen_hotkey(self) -> List[Dict]:
+        try:
+            state = ctypes.windll.user32.GetAsyncKeyState(win32con.VK_SNAPSHOT)
+            key_down = bool(state & 0x8000)
+            was_pressed = bool(state & 0x0001) or (key_down and not self.last_snapshot_key_down)
+            self.last_snapshot_key_down = key_down
+            if not was_pressed:
+                return []
+
+            event = {
+                "timestamp": datetime.now().isoformat(),
+                "event_type": "SCREENSHOT_TAKEN",
+                "tool_name": "PrintScreen",
+                "detection_method": "hotkey",
+            }
+            event.update(self._get_foreground_window_context())
+            return [event]
+        except Exception:
+            return []
+
+    def _detect_clipboard_screenshot(self) -> List[Dict]:
+        sequence_number = self._get_clipboard_sequence_number()
+        if not sequence_number or sequence_number == self.last_clipboard_sequence:
+            return []
+
+        self.last_clipboard_sequence = sequence_number
+        payload, clipboard_format = self._read_clipboard_image()
+        if not payload:
+            return []
+
+        payload_hash = hashlib.sha1(payload).hexdigest()
+        if payload_hash == self.last_clipboard_hash:
+            return []
+
+        self.last_clipboard_hash = payload_hash
+        event = {
+            "timestamp": datetime.now().isoformat(),
+            "event_type": "SCREENSHOT_TAKEN",
+            "tool_name": "clipboard_image",
+            "detection_method": "clipboard",
+            "clipboard_format": clipboard_format or "unknown",
+        }
+        event.update(self._get_foreground_window_context())
+        return [event]
+
     def check_new_processes(self) -> List[Dict]:
         """Check for new or terminated processes and emit rule-friendly events."""
         events = []
         current_pids = set()
+        screenshot_events = self._detect_printscreen_hotkey()
+        events.extend(screenshot_events)
 
         try:
             for proc in psutil.process_iter(["pid", "name", "exe", "username", "create_time", "cmdline"]):
@@ -527,6 +698,7 @@ class WindowsProcessMonitor:
                         screenshot_event["tool_name"] = process_name
                         screenshot_event["detection_method"] = "process"
                         events.append(screenshot_event)
+                        print(f"[ProcessMonitor] Screenshot detected: {process_name} (PID={pid})")
 
                     if process_name in SUSPICIOUS_PROCESS_NAMES:
                         suspicious_event = self._build_process_event("SUSPICIOUS_PROCESS", proc_info)
@@ -548,7 +720,10 @@ class WindowsProcessMonitor:
                 )
                 self.known_pids.remove(pid)
 
-            events.extend(self._collect_screenshot_file_events())
+            file_events = self._collect_screenshot_file_events()
+            events.extend(file_events)
+            if not any(event.get("event_type") == "SCREENSHOT_TAKEN" for event in events):
+                events.extend(self._detect_clipboard_screenshot())
         except Exception as exc:
             print(f"[ProcessMonitor] Error: {exc}")
 
@@ -562,15 +737,37 @@ def format_usb_event(event: Dict) -> str:
     manufacturer = event.get("manufacturer", "Unknown")
     status = event.get("status", "Unknown")
     device_class = event.get("class", "Unknown")
+    mount_point = event.get("mount_point", "")
+    descriptor = " ".join([device, manufacturer, device_class]).lower()
 
     if event["event_type"] == "USB_CONNECTED":
-        tokens = ["USB_CONNECT", "LAB_USB_INSERT"]
+        tokens = ["USB_CONNECT", "USB_ATTACH", "LAB_USB_INSERT"]
         if event.get("is_storage"):
-            tokens.append("STORAGE_MOUNTED")
+            tokens.extend(["USB_MOUNT", "STORAGE_MOUNTED"])
+        if "keyboard" in descriptor:
+            tokens.append("USB_KEYBOARD")
+        if "mouse" in descriptor:
+            tokens.append("USB_MOUSE")
+        if "hid" in descriptor and not {"USB_KEYBOARD", "USB_MOUSE"} & set(tokens):
+            tokens.append("USB_HID_UNKNOWN")
+        if "mtp" in descriptor:
+            tokens.append("MTP_CONNECT")
+        if "android" in descriptor:
+            tokens.append("ANDROID_MOUNT")
+        if "iphone" in descriptor or "ios" in descriptor or "apple mobile" in descriptor:
+            tokens.append("IOS_MOUNT")
+        detail_parts = [
+            f"Device={device}",
+            f"DeviceID={device_id}",
+            f"Manufacturer={manufacturer}",
+            f"Class={device_class}",
+            f"Status={status}",
+        ]
+        if mount_point:
+            detail_parts.append(f"MountPoint={mount_point}")
         return (
             f"{' '.join(tokens)}: USB device inserted | "
-            f"Device={device} | DeviceID={device_id} | Manufacturer={manufacturer} | "
-            f"Class={device_class} | Status={status}"
+            + " | ".join(detail_parts)
         )
 
     return (
@@ -634,6 +831,12 @@ def format_process_event(event: Dict) -> str:
             details.append(f"Path=\"{event['file_path']}\"")
         if event.get("cmdline"):
             details.append(f"Cmdline=\"{event['cmdline']}\"")
+        if event.get("window_process"):
+            details.append(f"WindowProcess=\"{event['window_process']}\"")
+        if event.get("window_title"):
+            details.append(f"WindowTitle=\"{event['window_title']}\"")
+        if event.get("clipboard_format"):
+            details.append(f"ClipboardFormat={event['clipboard_format']}")
         return f"{tokens}: Screenshot activity detected | " + " | ".join(details)
 
     if event["event_type"] == "APPLICATION_ANALYSIS":
