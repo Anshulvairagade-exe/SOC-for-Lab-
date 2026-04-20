@@ -1444,9 +1444,58 @@
             </div>
 
             {askResult && (
-              <div className="chatbot-answer">
-                <strong>Answer:</strong> {askResult.answer}
-              </div>
+              <>
+                <div className="chatbot-answer">
+                  <strong>Answer:</strong> {askResult.answer}
+                </div>
+
+                {Array.isArray(askResult.matches) && askResult.matches.length > 0 && (
+                  <div className="chatbot-grid" style={{marginTop: 10}}>
+                    <div className="chatbot-panel">
+                      <div className="chatbot-panel-title">Machines Involved</div>
+                      <div className="chatbot-list">
+                        {askResult.matches.slice(0, 6).map((m, i) => (
+                          <div key={i} className="chatbot-list-item">
+                            <div style={{display:'flex',justifyContent:'space-between',gap:8,marginBottom:4}}>
+                              <strong style={{color:'var(--text)'}}>{m.hostname || 'Unknown'}</strong>
+                              <span className="src-badge">{m.priority || 'Normal'}</span>
+                            </div>
+                            <div>Alerts: {m.alert_count ?? 0} | Risk: {m.risk_score ?? 0}</div>
+                            {Array.isArray(m.ai_domains) && m.ai_domains.length > 0 && (
+                              <div>AI domains: {m.ai_domains.slice(0, 3).join(', ')}</div>
+                            )}
+                            {Array.isArray(m.game_domains) && m.game_domains.length > 0 && (
+                              <div>Game domains: {m.game_domains.slice(0, 3).join(', ')}</div>
+                            )}
+                            {Array.isArray(m.top_domains) && m.top_domains.length > 0 && (
+                              <div>Top sites: {m.top_domains.slice(0, 3).join(', ')}</div>
+                            )}
+                            {Array.isArray(m.top_commands) && m.top_commands.length > 0 && (
+                              <div>Top commands: {m.top_commands.slice(0, 2).join(' | ')}</div>
+                            )}
+                            {Array.isArray(m.recommendations) && m.recommendations.length > 0 && (
+                              <div style={{marginTop:4}}>Action: {m.recommendations[0]}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="chatbot-panel">
+                      <div className="chatbot-panel-title">Quick Interpretation</div>
+                      <div className="chatbot-subline">
+                        This answer is based on machine logs + active alerts in the selected time window.
+                      </div>
+                      <div className="chatbot-subline">
+                        Use machine names above to quickly identify who needs immediate review.
+                      </div>
+                      <div className="chatbot-subline">
+                        Tip: Try asking exact questions like “which machine used gemini?” or “who played games most?”.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>

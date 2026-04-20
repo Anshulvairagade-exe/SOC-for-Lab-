@@ -324,15 +324,30 @@ def answer_teacher_query(
             {
                 "hostname": h["hostname"],
                 "ai_domains": h.get("ai_domains", []),
+                "top_domains": h.get("top_domains", [])[:3],
+                "top_commands": h.get("top_commands", [])[:3],
                 "alert_count": h.get("alert_count", 0),
                 "risk_score": h.get("risk_score", 0),
                 "priority": h.get("priority", "Normal"),
+                "recommendations": h.get("recommendations", [])[:2],
+                "important_events": h.get("important_events", [])[:2],
             }
             for h in hosts
             if h.get("ai_usage_detected")
         ]
         if matched:
-            answer = f"Yes. {len(matched)} machine(s) showed AI-related usage in the last {insights['window_minutes']} minutes."
+            details = []
+            for m in matched[:3]:
+                domains = ", ".join(m.get("ai_domains", [])[:3]) or "AI domain not captured"
+                details.append(
+                    f"{m['hostname']} (priority: {m.get('priority','Normal')}, "
+                    f"alerts: {m.get('alert_count', 0)}, AI domains: {domains})"
+                )
+            answer = (
+                f"Yes. {len(matched)} machine(s) showed AI-related usage in the last "
+                f"{insights['window_minutes']} minutes. "
+                f"Machines: {'; '.join(details)}."
+            )
         else:
             answer = f"No AI-related usage detected in the last {insights['window_minutes']} minutes."
 
@@ -341,15 +356,30 @@ def answer_teacher_query(
             {
                 "hostname": h["hostname"],
                 "game_domains": h.get("game_domains", []),
+                "top_domains": h.get("top_domains", [])[:3],
+                "top_commands": h.get("top_commands", [])[:3],
                 "alert_count": h.get("alert_count", 0),
                 "risk_score": h.get("risk_score", 0),
                 "priority": h.get("priority", "Normal"),
+                "recommendations": h.get("recommendations", [])[:2],
+                "important_events": h.get("important_events", [])[:2],
             }
             for h in hosts
             if h.get("gaming_detected")
         ]
         if matched:
-            answer = f"Yes. {len(matched)} machine(s) showed gaming-related usage in the last {insights['window_minutes']} minutes."
+            details = []
+            for m in matched[:3]:
+                domains = ", ".join(m.get("game_domains", [])[:3]) or "Gaming domain not captured"
+                details.append(
+                    f"{m['hostname']} (priority: {m.get('priority','Normal')}, "
+                    f"alerts: {m.get('alert_count', 0)}, gaming domains: {domains})"
+                )
+            answer = (
+                f"Yes. {len(matched)} machine(s) showed gaming-related usage in the last "
+                f"{insights['window_minutes']} minutes. "
+                f"Machines: {'; '.join(details)}."
+            )
         else:
             answer = f"No gaming-related usage detected in the last {insights['window_minutes']} minutes."
 
@@ -363,19 +393,25 @@ def answer_teacher_query(
                 "risk_score": h.get("risk_score", 0),
                 "severity_counts": h.get("severity_counts", {}),
                 "top_domains": h.get("top_domains", [])[:3],
+                "top_commands": h.get("top_commands", [])[:3],
+                "recommendations": h.get("recommendations", [])[:2],
+                "important_events": h.get("important_events", [])[:2],
             }
             for h in top
         ]
         if matched:
             top_host = matched[0]
             sev = top_host.get("severity_counts", {})
+            top_domains = ", ".join(top_host.get("top_domains", [])[:2]) or "—"
+            top_commands = " | ".join(top_host.get("top_commands", [])[:2]) or "—"
             answer = (
                 f"Summary ({insights.get('window_minutes')} min): "
                 f"{insights.get('class_overview')} "
                 f"Highest attention: {top_host['hostname']} "
                 f"with {top_host['alert_count']} alert(s) "
                 f"(C:{sev.get('CRITICAL',0)}, H:{sev.get('HIGH',0)}, "
-                f"M:{sev.get('MEDIUM',0)}, L:{sev.get('LOW',0)})."
+                f"M:{sev.get('MEDIUM',0)}, L:{sev.get('LOW',0)}). "
+                f"Top sites: {top_domains}. Top commands: {top_commands}."
             )
         else:
             answer = insights.get("class_overview", "No summary available.")
