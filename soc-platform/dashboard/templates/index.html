@@ -241,7 +241,14 @@
     .date-input   { color-scheme: dark; }
 
     /* ─── Alert Table ─────────────────────────────────────────────── */
-    .alert-list { overflow-y: auto; max-height: calc(100vh - 340px); min-height: 280px; }
+    .alert-list { overflow-y: auto; max-height: calc(100vh - 315px); min-height: 320px; }
+    .alert-feed-card {
+      min-height: 0;
+    }
+    .alert-feed-card .alert-list {
+      max-height: calc(100vh - 315px);
+      min-height: 320px;
+    }
     table { width: 100%; border-collapse: collapse; }
     thead th {
       background: var(--bg-surface-2);
@@ -427,6 +434,11 @@
       main { grid-template-columns: 1fr; }
       .stat-grid { grid-template-columns: repeat(2,1fr); }
       .bottom-ai { padding: 0 16px 18px; }
+      .alert-list,
+      .alert-feed-card .alert-list {
+        max-height: 60vh;
+        min-height: 260px;
+      }
     }
   </style>
 </head>
@@ -936,7 +948,7 @@
             </div>
 
             {/* Alert Table */}
-            <div className="card">
+            <div className="card alert-feed-card">
               <div className="card-header">
                 <span className="card-title">🚨 Alert Feed</span>
                 <span className="card-count">{filtered.length} alert{filtered.length!==1?'s':''}</span>

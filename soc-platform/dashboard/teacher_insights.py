@@ -383,7 +383,12 @@ def build_class_period_report_html(minutes: int = 60, hostname: str | None = Non
 
         score = _class_score(hosts)
         risk_label = "Excellent" if score >= 90 else "Good" if score >= 75 else "Watch" if score >= 50 else "High Risk"
+        grade = "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D"
         now_txt = _fmt_ts(time.time())
+        total_alerts = sum(int(h.get("alert_count", 0)) for h in hosts)
+        total_logs = sum(int(h.get("log_count", 0)) for h in hosts)
+        monitored_machines = len(hosts)
+        high_priority_count = sum(1 for h in hosts if (h.get("priority") or "").upper() in {"HIGH", "CRITICAL"})
 
         if queue:
                 queue_html = "".join(
@@ -432,51 +437,119 @@ def build_class_period_report_html(minutes: int = 60, hostname: str | None = Non
             <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />
             <title>Class Period Teacher Report</title>
             <style>
-                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }}
-                .wrap {{ max-width: 1100px; margin: 0 auto; padding: 24px; }}
-                .hero {{ background: linear-gradient(120deg,#1d4ed8,#0ea5e9); border-radius: 14px; padding: 20px 22px; color: #fff; }}
-                .hero h1 {{ margin: 0 0 8px 0; font-size: 24px; }}
-                .muted {{ color: #cbd5e1; font-size: 12px; margin-top: 4px; }}
-                .grid {{ display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 14px; }}
-                .stat {{ background: #111827; border: 1px solid #334155; border-radius: 10px; padding: 12px; }}
-                .stat .v {{ font-size: 24px; font-weight: 700; }}
-                .panel {{ margin-top: 14px; background: #111827; border: 1px solid #334155; border-radius: 12px; padding: 14px; }}
+                :root {{
+                    --bg: #f4f7fb;
+                    --card: #ffffff;
+                    --ink: #0f172a;
+                    --muted: #475569;
+                    --line: #dbe4f0;
+                    --brand-1: #1d4ed8;
+                    --brand-2: #0ea5e9;
+                    --ok: #16a34a;
+                    --warn: #d97706;
+                    --risk: #dc2626;
+                }}
+                * {{ box-sizing: border-box; }}
+                body {{
+                    margin: 0;
+                    background: linear-gradient(180deg, #eef3fb 0%, var(--bg) 100%);
+                    color: var(--ink);
+                    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                }}
+                .wrap {{ max-width: 1180px; margin: 0 auto; padding: 28px 22px 34px; }}
+                .report-shell {{ background: #f8fbff; border: 1px solid #d7e3f5; border-radius: 18px; padding: 18px; }}
+                .hero {{
+                    background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
+                    border-radius: 14px;
+                    padding: 18px 20px;
+                    color: #fff;
+                    box-shadow: 0 10px 30px rgba(29, 78, 216, 0.24);
+                }}
+                .hero-top {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }}
+                .hero h1 {{ margin: 0 0 6px 0; font-size: 24px; letter-spacing: 0.2px; }}
+                .subtitle {{ font-size: 13px; line-height: 1.45; color: #e8f2ff; max-width: 900px; }}
+                .badge {{
+                    background: rgba(255,255,255,0.18);
+                    border: 1px solid rgba(255,255,255,0.35);
+                    border-radius: 999px;
+                    padding: 6px 11px;
+                    font-size: 12px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                }}
+                .meta {{ margin-top: 8px; font-size: 12px; color: #dbeafe; }}
+
+                .kpis {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 14px; }}
+                .stat {{ background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }}
+                .stat .k {{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }}
+                .stat .v {{ margin-top: 6px; font-size: 26px; font-weight: 800; line-height: 1; }}
+                .stat .s {{ margin-top: 4px; font-size: 12px; color: var(--muted); }}
+
+                .panel {{ margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }}
                 .panel h2 {{ margin: 0 0 10px; font-size: 16px; }}
-                .machine-grid {{ display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }}
-                .machine {{ background: #0b1220; border: 1px solid #334155; border-radius: 10px; padding: 12px; }}
+                .panel .lead {{ font-size: 12px; color: var(--muted); margin-bottom: 8px; }}
+
+                .queue {{ margin: 0; padding-left: 18px; }}
+                .queue li {{ margin: 6px 0; font-size: 13px; color: #1e293b; }}
+
+                .machine-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
+                .machine {{ background: #ffffff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }}
                 .machine-head {{ display: flex; justify-content: space-between; align-items: center; gap: 8px; }}
-                .machine-head h3 {{ margin: 0; font-size: 15px; }}
-                .prio {{ background: #1e293b; border: 1px solid #475569; border-radius: 999px; padding: 2px 8px; font-size: 11px; }}
-                .kv {{ font-size: 12px; margin-top: 6px; color: #cbd5e1; }}
-                .section-title {{ margin-top: 8px; font-size: 12px; color: #94a3b8; font-weight: 600; }}
-                ul {{ margin: 8px 0 0 18px; padding: 0; }}
-                li {{ margin: 4px 0; font-size: 12px; }}
-                @media print {{ body {{ background: white; color: black; }} .hero {{ color: black; background: #e2e8f0; }} .panel,.stat,.machine {{ border-color: #cbd5e1; background: #fff; }} }}
+                .machine-head h3 {{ margin: 0; font-size: 15px; color: #0b1b36; }}
+                .prio {{ background: #f1f5f9; border: 1px solid #cbd5e1; color: #334155; border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 700; }}
+                .muted {{ font-size: 12px; color: var(--muted); margin-top: 5px; }}
+                .kv {{ font-size: 12px; margin-top: 5px; color: #334155; line-height: 1.45; }}
+                .section-title {{ margin-top: 9px; font-size: 12px; color: #1e3a8a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }}
+                .machine ul {{ margin: 7px 0 0 18px; padding: 0; }}
+                .machine li {{ margin: 4px 0; font-size: 12px; color: #334155; }}
+
+                .footer {{ margin-top: 12px; font-size: 11px; color: #64748b; text-align: right; }}
+
+                @media (max-width: 980px) {{ .kpis {{ grid-template-columns: repeat(2, 1fr); }} .machine-grid {{ grid-template-columns: 1fr; }} }}
+                @media print {{
+                    body {{ background: #fff; }}
+                    .wrap {{ padding: 0; max-width: none; }}
+                    .report-shell {{ border: none; border-radius: 0; padding: 8px; }}
+                    .hero {{ box-shadow: none; }}
+                    .panel, .stat, .machine {{ break-inside: avoid; }}
+                }}
             </style>
         </head>
         <body>
             <div class=\"wrap\">
-                <div class=\"hero\">
-                    <h1>Class Period Teacher Report Card</h1>
-                    <div>{html_lib.escape(insights.get('class_overview','No overview'))}</div>
-                    <div class=\"muted\">Generated: {html_lib.escape(now_txt)} | Window: {insights.get('window_minutes', minutes)} min</div>
-                </div>
+                <div class=\"report-shell\">
+                    <div class=\"hero\">
+                        <div class=\"hero-top\">
+                            <div>
+                                <h1>Class Period Performance Report</h1>
+                                <div class=\"subtitle\">{html_lib.escape(insights.get('class_overview', 'No overview'))}</div>
+                            </div>
+                            <div class=\"badge\">Grade {grade} · {risk_label}</div>
+                        </div>
+                        <div class=\"meta\">Generated: {html_lib.escape(now_txt)} · Monitoring window: {insights.get('window_minutes', minutes)} minutes</div>
+                    </div>
 
-                <div class=\"grid\">
-                    <div class=\"stat\"><div>Class Health Score</div><div class=\"v\">{score}</div><div class=\"muted\">{risk_label}</div></div>
-                    <div class=\"stat\"><div>AI Usage Machines</div><div class=\"v\">{signals.get('ai_usage_machines',0)}</div></div>
-                    <div class=\"stat\"><div>Gaming Machines</div><div class=\"v\">{signals.get('gaming_machines',0)}</div></div>
-                    <div class=\"stat\"><div>Blocked Browsing</div><div class=\"v\">{signals.get('blocked_browsing_machines',0)}</div></div>
-                </div>
+                    <div class=\"kpis\">
+                        <div class=\"stat\"><div class=\"k\">Class Health Score</div><div class=\"v\">{score}</div><div class=\"s\">{risk_label}</div></div>
+                        <div class=\"stat\"><div class=\"k\">Monitored Machines</div><div class=\"v\">{monitored_machines}</div><div class=\"s\">Active in this period</div></div>
+                        <div class=\"stat\"><div class=\"k\">Total Alerts</div><div class=\"v\">{total_alerts}</div><div class=\"s\">Across all devices</div></div>
+                        <div class=\"stat\"><div class=\"k\">AI Usage Machines</div><div class=\"v\">{signals.get('ai_usage_machines',0)}</div><div class=\"s\">Potential AI-assisted activity</div></div>
+                        <div class=\"stat\"><div class=\"k\">Gaming / High Priority</div><div class=\"v\">{signals.get('gaming_machines',0)} / {high_priority_count}</div><div class=\"s\">Gaming flags / priority devices</div></div>
+                    </div>
 
-                <div class=\"panel\">
-                    <h2>Teacher Action Queue (Priority First)</h2>
-                    <ul>{queue_html}</ul>
-                </div>
+                    <div class=\"panel\">
+                        <h2>Teacher Action Queue</h2>
+                        <div class=\"lead\">Priority-sorted recommendations for immediate classroom attention.</div>
+                        <ul class=\"queue\">{queue_html}</ul>
+                    </div>
 
-                <div class=\"panel\">
-                    <h2>Machine-by-Machine Summary</h2>
-                    <div class=\"machine-grid\">{machine_html}</div>
+                    <div class=\"panel\">
+                        <h2>Machine-by-Machine Summary</h2>
+                        <div class=\"lead\">Detailed behavior snapshot including alerts, activity signals, and suggested follow-up.</div>
+                        <div class=\"machine-grid\">{machine_html}</div>
+                    </div>
+
+                    <div class=\"footer\">SOC Classroom Intelligence · Logs analyzed: {total_logs}</div>
                 </div>
             </div>
         </body>
