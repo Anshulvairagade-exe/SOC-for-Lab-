@@ -11,6 +11,8 @@ import os
 import sys
 import time
 import threading
+import json
+import re
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from shared.config import DB_PATH
@@ -40,6 +42,73 @@ def get_connection():
         conn.execute("PRAGMA mmap_size=268435456")     # 256MB memory-mapped I/O
         _local.conn = conn
     return _local.conn
+
+
+def _normalize_role(role: str | None) -> str:
+    return "admin" if str(role or "").strip().lower() == "admin" else "teacher"
+
+
+def _normalize_allowed_hostnames(allowed_hostnames: list[str] | None) -> list[str] | None:
+    if allowed_hostnames is None:
+        return None
+    normalized = sorted({str(item).strip() for item in allowed_hostnames if str(item).strip()})
+    if "*" in normalized:
+        return None
+    return normalized
+
+
+def _serialize_allowed_hostnames(allowed_hostnames: list[str] | None) -> str:
+    normalized = _normalize_allowed_hostnames(allowed_hostnames)
+    if normalized is None:
+        return json.dumps(["*"])
+    return json.dumps(normalized)
+
+
+def _deserialize_allowed_hostnames(raw_value: str | None) -> list[str]:
+    if not raw_value:
+        return []
+    try:
+        data = json.loads(raw_value)
+        if isinstance(data, list):
+            normalized = sorted({str(item).strip() for item in data if str(item).strip()})
+            return ["*"] if "*" in normalized else normalized
+    except Exception:
+        pass
+
+    fallback = [part.strip() for part in str(raw_value).split("|") if part.strip()]
+    return ["*"] if "*" in fallback else fallback
+
+
+def _normalize_alert_log(raw_log: str | None) -> str:
+    if not raw_log:
+        return ""
+    return re.sub(r"^\[.*?\]\s*", "", str(raw_log)).strip()
+
+
+def _append_hostname_scope(query: str, params: list, column_name: str, allowed_hostnames: list[str] | None) -> tuple[str, list]:
+    normalized = _normalize_allowed_hostnames(allowed_hostnames)
+    if normalized is None:
+        return query, params
+    if not normalized:
+        return query + " AND 1=0", params
+    placeholders = ",".join("?" for _ in normalized)
+    query += f" AND {column_name} IN ({placeholders})"
+    params.extend(normalized)
+    return query, params
+
+
+def _teacher_row_to_profile(row: sqlite3.Row | None) -> dict | None:
+    if not row:
+        return None
+    role = _normalize_role(row["role"] if "role" in row.keys() else "teacher")
+    allowed_hostnames = _deserialize_allowed_hostnames(row["allowed_hostnames"] if "allowed_hostnames" in row.keys() else "")
+    if role == "admin":
+        allowed_hostnames = ["*"]
+    return {
+        "username": row["username"],
+        "role": role,
+        "allowed_hostnames": allowed_hostnames,
+    }
 
 
 # ─────────────────────────────────────────────
@@ -92,6 +161,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS teacher_users (
             username TEXT PRIMARY KEY,
             password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'teacher',
+            allowed_hostnames TEXT NOT NULL DEFAULT '[]',
             created_at REAL NOT NULL
         )
     """)
@@ -154,6 +225,15 @@ def init_db():
         )
         cur.execute("DROP TABLE teacher_login_attempts_legacy")
 
+    teacher_user_columns = {
+        row["name"]
+        for row in cur.execute("PRAGMA table_info(teacher_users)").fetchall()
+    }
+    if "role" not in teacher_user_columns:
+        cur.execute("ALTER TABLE teacher_users ADD COLUMN role TEXT NOT NULL DEFAULT 'teacher'")
+    if "allowed_hostnames" not in teacher_user_columns:
+        cur.execute("ALTER TABLE teacher_users ADD COLUMN allowed_hostnames TEXT NOT NULL DEFAULT '[]'")
+
     # --- Indexes for faster queries (critical for 60+ agents) ---
     cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id)")
@@ -169,29 +249,54 @@ def init_db():
     # Seed teacher accounts and keep configured credentials in sync with SQLite.
     now = time.time()
     existing_teacher_rows = cur.execute(
-        "SELECT username, password_hash FROM teacher_users"
+        "SELECT username, password_hash, role, allowed_hostnames FROM teacher_users"
     ).fetchall()
-    existing_teacher_hashes = {
-        row["username"]: row["password_hash"]
+    existing_teacher_profiles = {
+        row["username"]: {
+            "password_hash": row["password_hash"],
+            "role": row["role"] if "role" in row.keys() else "teacher",
+            "allowed_hostnames": row["allowed_hostnames"] if "allowed_hostnames" in row.keys() else "[]",
+        }
         for row in existing_teacher_rows
     }
 
     inserted_accounts = 0
     updated_accounts = 0
-    for username, password in TEACHER_ACCOUNTS:
-        stored_hash = existing_teacher_hashes.get(username)
-        if stored_hash is None:
+    for account in TEACHER_ACCOUNTS:
+        username = account["username"]
+        password = account["password"]
+        role = _normalize_role(account.get("role"))
+        allowed_hostnames = ["*"] if role == "admin" else account.get("allowed_hostnames", [])
+        serialized_allowed_hostnames = _serialize_allowed_hostnames(allowed_hostnames)
+
+        stored_profile = existing_teacher_profiles.get(username)
+        if stored_profile is None:
             cur.execute(
-                "INSERT INTO teacher_users (username, password_hash, created_at) VALUES (?, ?, ?)",
-                (username, hash_password(password), now),
+                """
+                INSERT INTO teacher_users (username, password_hash, role, allowed_hostnames, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (username, hash_password(password), role, serialized_allowed_hostnames, now),
             )
             inserted_accounts += 1
             continue
 
-        if not verify_password(password, stored_hash):
+        updates: list[str] = []
+        params: list = []
+        if not verify_password(password, stored_profile["password_hash"]):
+            updates.append("password_hash = ?")
+            params.append(hash_password(password))
+        if _normalize_role(stored_profile["role"]) != role:
+            updates.append("role = ?")
+            params.append(role)
+        if stored_profile["allowed_hostnames"] != serialized_allowed_hostnames:
+            updates.append("allowed_hostnames = ?")
+            params.append(serialized_allowed_hostnames)
+
+        if updates:
             cur.execute(
-                "UPDATE teacher_users SET password_hash = ? WHERE username = ?",
-                (hash_password(password), username),
+                f"UPDATE teacher_users SET {', '.join(updates)} WHERE username = ?",
+                (*params, username),
             )
             updated_accounts += 1
 
@@ -229,9 +334,13 @@ def upsert_agent(agent_id: str, hostname: str):
     conn.close(); _local.conn = None
 
 
-def get_all_agents() -> list[dict]:
+def get_all_agents(allowed_hostnames: list[str] | None = None) -> list[dict]:
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM agents ORDER BY last_seen DESC").fetchall()
+    query = "SELECT * FROM agents WHERE 1=1"
+    params: list = []
+    query, params = _append_hostname_scope(query, params, "hostname", allowed_hostnames)
+    query += " ORDER BY last_seen DESC"
+    rows = conn.execute(query, tuple(params)).fetchall()
     conn.close(); _local.conn = None
     return [dict(r) for r in rows]
 
@@ -250,18 +359,18 @@ def insert_log(event: LogEvent):
     conn.close(); _local.conn = None
 
 
-def get_logs(limit: int = 100, agent_id: str = None) -> list[dict]:
+def get_logs(limit: int = 100, agent_id: str = None, allowed_hostnames: list[str] | None = None) -> list[dict]:
     """Fetch recent logs, optionally filtered by agent."""
     conn = get_connection()
+    params: list = []
+    query = "SELECT * FROM logs WHERE 1=1"
     if agent_id:
-        rows = conn.execute(
-            "SELECT * FROM logs WHERE agent_id=? ORDER BY timestamp DESC LIMIT ?",
-            (agent_id, limit)
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM logs ORDER BY timestamp DESC LIMIT ?", (limit,)
-        ).fetchall()
+        query += " AND agent_id=?"
+        params.append(agent_id)
+    query, params = _append_hostname_scope(query, params, "hostname", allowed_hostnames)
+    query += " ORDER BY timestamp DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(query, tuple(params)).fetchall()
     conn.close(); _local.conn = None
     return [dict(r) for r in rows]
 
@@ -284,16 +393,26 @@ def insert_alert(alert: Alert):
     conn.close(); _local.conn = None
 
 
-def get_alerts(limit: int = 100, severity: str = None, date_str: str = None) -> list[dict]:
+def get_alerts(
+    limit: int = 100,
+    severity: str = None,
+    date_str: str = None,
+    hostname: str = None,
+    allowed_hostnames: list[str] | None = None,
+) -> list[dict]:
     """Fetch recent alerts, optionally filtered by severity and date (YYYY-MM-DD)."""
     conn = get_connection()
     
     query = "SELECT * FROM alerts WHERE 1=1"
-    params = []
+    params: list = []
     
     if severity:
         query += " AND severity=?"
         params.append(severity)
+
+    if hostname:
+        query += " AND hostname=?"
+        params.append(hostname)
         
     if date_str:
         import datetime
@@ -305,6 +424,8 @@ def get_alerts(limit: int = 100, severity: str = None, date_str: str = None) -> 
             params.extend([start_ts, end_ts])
         except ValueError:
             pass
+
+    query, params = _append_hostname_scope(query, params, "hostname", allowed_hostnames)
             
     query += " ORDER BY timestamp DESC LIMIT ?"
     params.append(limit)
@@ -314,23 +435,64 @@ def get_alerts(limit: int = 100, severity: str = None, date_str: str = None) -> 
     return [dict(r) for r in rows]
 
 
-def acknowledge_alert(alert_id: int):
-    """Mark an alert as acknowledged (reviewed by analyst)."""
+def acknowledge_alert(alert_id: int, allowed_hostnames: list[str] | None = None) -> bool:
+    """Mark an alert (and duplicates within a short window) as acknowledged."""
     conn = get_connection()
-    conn.execute("UPDATE alerts SET acknowledged=1 WHERE id=?", (alert_id,))
+    base_query = "SELECT id, hostname, matched_log, timestamp FROM alerts WHERE id=?"
+    base_params: list = [alert_id]
+    base_query, base_params = _append_hostname_scope(base_query, base_params, "hostname", allowed_hostnames)
+    row = conn.execute(base_query, tuple(base_params)).fetchone()
+    if not row:
+        conn.close(); _local.conn = None
+        return False
+
+    target_log = _normalize_alert_log(row["matched_log"])
+    window_seconds = 300
+    start_ts = row["timestamp"] - window_seconds
+    end_ts = row["timestamp"] + window_seconds
+
+    related_ids = [row["id"]]
+    if target_log:
+        candidates_query = """
+            SELECT id, matched_log
+            FROM alerts
+            WHERE hostname = ?
+              AND acknowledged = 0
+              AND timestamp BETWEEN ? AND ?
+        """
+        candidates_params: list = [row["hostname"], start_ts, end_ts]
+        candidates_query, candidates_params = _append_hostname_scope(
+            candidates_query, candidates_params, "hostname", allowed_hostnames
+        )
+        candidates = conn.execute(candidates_query, tuple(candidates_params)).fetchall()
+        related_ids = [
+            candidate["id"]
+            for candidate in candidates
+            if _normalize_alert_log(candidate["matched_log"]) == target_log
+        ] or [row["id"]]
+
+    placeholders = ",".join("?" for _ in related_ids)
+    update_query = f"UPDATE alerts SET acknowledged=1 WHERE id IN ({placeholders})"
+    cur = conn.execute(update_query, tuple(related_ids))
     conn.commit()
     conn.close(); _local.conn = None
+    return bool(cur.rowcount)
 
 
-def get_alert_counts() -> dict:
+def get_alert_counts(allowed_hostnames: list[str] | None = None) -> dict:
     """Get alert counts grouped by severity (for dashboard stats)."""
     conn = get_connection()
-    rows = conn.execute("""
+    query = """
         SELECT severity, COUNT(*) as count
         FROM alerts
         WHERE acknowledged = 0
+    """
+    params: list = []
+    query, params = _append_hostname_scope(query, params, "hostname", allowed_hostnames)
+    query += """
         GROUP BY severity
-    """).fetchall()
+    """
+    rows = conn.execute(query, tuple(params)).fetchall()
     conn.close(); _local.conn = None
     return {r["severity"]: r["count"] for r in rows}
 
@@ -364,19 +526,30 @@ def prune_old_data(log_days: int = 7, alert_days: int = 30) -> dict:
     }
 
 
-def authenticate_teacher(username: str, password: str) -> str | None:
-    """Validate a dashboard teacher username/password pair and return the canonical username."""
+def authenticate_teacher(username: str, password: str) -> dict | None:
+    """Validate a dashboard teacher username/password pair and return the canonical account profile."""
     conn = get_connection()
     row = conn.execute(
-        "SELECT username, password_hash FROM teacher_users WHERE lower(username) = lower(?)",
+        "SELECT username, password_hash, role, allowed_hostnames FROM teacher_users WHERE lower(username) = lower(?)",
         (username.strip(),),
     ).fetchone()
     conn.close(); _local.conn = None
     if not row:
         return None
     if verify_password(password, row["password_hash"]):
-        return row["username"]
+        return _teacher_row_to_profile(row)
     return None
+
+
+def get_teacher_user(username: str) -> dict | None:
+    """Fetch a teacher account profile for RBAC checks."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT username, role, allowed_hostnames FROM teacher_users WHERE lower(username) = lower(?)",
+        (username.strip(),),
+    ).fetchone()
+    conn.close(); _local.conn = None
+    return _teacher_row_to_profile(row)
 
 
 def record_teacher_login_attempt(username: str, remote_addr: str, success: bool):
@@ -481,18 +654,24 @@ def close_teacher_login_session(session_id: str):
     conn.close(); _local.conn = None
 
 
-def get_recent_teacher_access(limit: int = 50) -> list[dict]:
+def get_recent_teacher_access(limit: int = 50, viewer_username: str | None = None, is_admin: bool = False) -> list[dict]:
     """Fetch recent teacher dashboard access sessions."""
     conn = get_connection()
-    rows = conn.execute(
-        """
+    params: list = []
+    query = """
         SELECT session_id, username, login_at, logout_at
         FROM teacher_login_sessions
+        WHERE 1=1
+    """
+    if viewer_username and not is_admin:
+        query += " AND username = ?"
+        params.append(viewer_username)
+    query += """
         ORDER BY login_at DESC
         LIMIT ?
-        """,
-        (max(1, int(limit)),),
-    ).fetchall()
+    """
+    params.append(max(1, int(limit)))
+    rows = conn.execute(query, tuple(params)).fetchall()
     conn.close(); _local.conn = None
     return [dict(r) for r in rows]
 
@@ -523,7 +702,12 @@ def _build_session_recommendations(
     return recommendations[:5]
 
 
-def generate_session_report(session_id: str) -> dict:
+def generate_session_report(
+    session_id: str,
+    viewer_username: str | None = None,
+    is_admin: bool = False,
+    allowed_hostnames: list[str] | None = None,
+) -> dict:
     """
     Generate a report of activity during a teacher login session.
     Returns summary of alerts and logs captured during the session window.
@@ -546,90 +730,104 @@ def generate_session_report(session_id: str) -> dict:
         }
 
     username = session["username"]
+    if viewer_username and not is_admin and username != viewer_username:
+        conn.close()
+        _local.conn = None
+        return {
+            "status": "forbidden",
+            "session_id": session_id,
+            "error": "You are not allowed to view another user's session report.",
+        }
+
     login_at = session["login_at"]
     logout_at = session["logout_at"] or time.time()
 
-    severity_rows = conn.execute(
-        """
+    severity_query = """
         SELECT severity, COUNT(*) as count
         FROM alerts
         WHERE timestamp BETWEEN ? AND ?
-        GROUP BY severity
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    severity_params: list = [login_at, logout_at]
+    severity_query, severity_params = _append_hostname_scope(severity_query, severity_params, "hostname", allowed_hostnames)
+    severity_query += " GROUP BY severity"
+    severity_rows = conn.execute(severity_query, tuple(severity_params)).fetchall()
 
-    rule_rows = conn.execute(
-        """
+    rule_query = """
         SELECT severity, rule_id, rule_name, COUNT(*) as count, MAX(timestamp) as last_seen
         FROM alerts
         WHERE timestamp BETWEEN ? AND ?
+    """
+    rule_params: list = [login_at, logout_at]
+    rule_query, rule_params = _append_hostname_scope(rule_query, rule_params, "hostname", allowed_hostnames)
+    rule_query += """
         GROUP BY severity, rule_id, rule_name
         ORDER BY count DESC, last_seen DESC
         LIMIT 25
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    rule_rows = conn.execute(rule_query, tuple(rule_params)).fetchall()
 
-    alert_rows = conn.execute(
-        """
+    alert_query = """
         SELECT id, severity, rule_id, rule_name, hostname, matched_log, acknowledged, timestamp
         FROM alerts
         WHERE timestamp BETWEEN ? AND ?
-        ORDER BY timestamp DESC
-        LIMIT 120
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    alert_params: list = [login_at, logout_at]
+    alert_query, alert_params = _append_hostname_scope(alert_query, alert_params, "hostname", allowed_hostnames)
+    alert_query += " ORDER BY timestamp DESC LIMIT 120"
+    alert_rows = conn.execute(alert_query, tuple(alert_params)).fetchall()
 
-    log_rows = conn.execute(
-        """
+    log_query = """
         SELECT id, hostname, source, raw_log, timestamp
         FROM logs
         WHERE timestamp BETWEEN ? AND ?
-        ORDER BY timestamp DESC
-        LIMIT 180
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    log_params: list = [login_at, logout_at]
+    log_query, log_params = _append_hostname_scope(log_query, log_params, "hostname", allowed_hostnames)
+    log_query += " ORDER BY timestamp DESC LIMIT 180"
+    log_rows = conn.execute(log_query, tuple(log_params)).fetchall()
 
-    host_alert_rows = conn.execute(
-        """
+    host_alert_query = """
         SELECT hostname, COUNT(*) as alert_count
         FROM alerts
         WHERE timestamp BETWEEN ? AND ?
+    """
+    host_alert_params: list = [login_at, logout_at]
+    host_alert_query, host_alert_params = _append_hostname_scope(host_alert_query, host_alert_params, "hostname", allowed_hostnames)
+    host_alert_query += """
         GROUP BY hostname
         ORDER BY alert_count DESC
         LIMIT 20
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    host_alert_rows = conn.execute(host_alert_query, tuple(host_alert_params)).fetchall()
 
-    host_log_rows = conn.execute(
-        """
+    host_log_query = """
         SELECT hostname, COUNT(*) as log_count
         FROM logs
         WHERE timestamp BETWEEN ? AND ?
+    """
+    host_log_params: list = [login_at, logout_at]
+    host_log_query, host_log_params = _append_hostname_scope(host_log_query, host_log_params, "hostname", allowed_hostnames)
+    host_log_query += """
         GROUP BY hostname
         ORDER BY log_count DESC
         LIMIT 20
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    host_log_rows = conn.execute(host_log_query, tuple(host_log_params)).fetchall()
 
-    sources = conn.execute(
-        """
+    sources_query = """
         SELECT source, COUNT(*) as log_count
         FROM logs
         WHERE timestamp BETWEEN ? AND ?
+    """
+    sources_params: list = [login_at, logout_at]
+    sources_query, sources_params = _append_hostname_scope(sources_query, sources_params, "hostname", allowed_hostnames)
+    sources_query += """
         GROUP BY source
         ORDER BY log_count DESC
-        """,
-        (login_at, logout_at)
-    ).fetchall()
+    """
+    sources = conn.execute(sources_query, tuple(sources_params)).fetchall()
 
-    flag_row = conn.execute(
-        """
+    flag_query = """
         SELECT
             COALESCE(SUM(CASE WHEN source = 'SCREENSHOT' OR raw_log LIKE '%SCREENSHOT_TAKEN%' THEN 1 ELSE 0 END), 0) AS screenshot_events,
             COALESCE(SUM(CASE WHEN source IN ('USB', 'LAB_USB') OR raw_log LIKE '%LAB_USB_INSERT%' OR raw_log LIKE '%USB_ATTACH%' THEN 1 ELSE 0 END), 0) AS usb_events,
@@ -638,9 +836,10 @@ def generate_session_report(session_id: str) -> dict:
             COALESCE(SUM(CASE WHEN source IN ('POWERSHELL', 'SHELL') OR raw_log LIKE '%TERMINAL_COMMAND%' OR raw_log LIKE '%SHELL_COMMAND%' THEN 1 ELSE 0 END), 0) AS terminal_events
         FROM logs
         WHERE timestamp BETWEEN ? AND ?
-        """,
-        (login_at, logout_at)
-    ).fetchone()
+    """
+    flag_params: list = [login_at, logout_at]
+    flag_query, flag_params = _append_hostname_scope(flag_query, flag_params, "hostname", allowed_hostnames)
+    flag_row = conn.execute(flag_query, tuple(flag_params)).fetchone()
 
     conn.close()
     _local.conn = None
