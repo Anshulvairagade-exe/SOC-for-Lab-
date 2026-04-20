@@ -74,7 +74,7 @@ class BrowserHistoryMonitor:
 
     def _connect_read_only(self, db_path: str) -> sqlite3.Connection:
         source_uri = f"{Path(db_path).resolve().as_uri()}?mode=ro"
-        return sqlite3.connect(source_uri, uri=True, timeout=1)
+        return sqlite3.connect(source_uri, uri=True, timeout=5, check_same_thread=False)
 
     def _extract_profile_name(self, source_path: str) -> str:
         source = Path(source_path)
@@ -182,10 +182,15 @@ class BrowserHistoryMonitor:
                 continue
 
             try:
-                all_history.extend(self._collect_browser_history(browser))
+                history = self._collect_browser_history(browser)
+                all_history.extend(history)
+                if history:
+                    print(f"[BrowserHistory] {browser}: collected {len(history)} entries")
             except Exception as e:
-                print(f"[BrowserHistory] Error collecting {browser}: {e}")
+                print(f"[BrowserHistory] Error collecting {browser}: {type(e).__name__}: {e}")
 
+        if not all_history:
+            print(f"[BrowserHistory] No browser history collected. Browsers available: {browsers}")
         return all_history
 
     def _collect_browser_history(self, browser: str) -> List[Dict]:

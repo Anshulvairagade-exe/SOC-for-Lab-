@@ -62,7 +62,6 @@ python -m manager.manager
 ### Step 2 — Start API + Dashboard (same server, new terminal)
 ```bash
 API_HOST=127.0.0.1 API_PORT=8000 \
-DASHBOARD_PASSWORD=your-strong-password \
 DASHBOARD_SESSION_SECRET=your-long-random-secret \
 python -m dashboard.api
 
@@ -87,11 +86,16 @@ python -m agent.agent
 | `MANAGER_PORT` | Manager TCP port (default `9000`) |
 | `API_HOST` | Dashboard API host (default `0.0.0.0`) |
 | `API_PORT` | Dashboard API port (default `8000`) |
-| `DASHBOARD_PASSWORD` | Required dashboard login password |
+| `TEACHER_ACCOUNTS` | Teacher credentials as `user:pass,user2:pass2,...` |
 | `DASHBOARD_SESSION_SECRET` | Session secret key |
 | `AGENT_ID` | Unique machine/agent id |
 | `AGENT_HOSTNAME` | Human-readable machine name |
 | `AGENT_SEND_INTERVAL` | Agent send interval in seconds |
+
+Default auto-created teacher accounts (when `TEACHER_ACCOUNTS` is not set):
+`teacher01/Lab@Teacher01`, `teacher02/Lab@Teacher02`, `teacher03/Lab@Teacher03`,
+`teacher04/Lab@Teacher04`, `teacher05/Lab@Teacher05`, `teacher06/Lab@Teacher06`,
+`teacher07/Lab@Teacher07`, `teacher08/Lab@Teacher08`, `teacher09/Lab@Teacher09`.
 
 ---
 
@@ -122,7 +126,7 @@ Rule format:
 - Cross-platform monitoring (Linux/macOS + Windows integrations)
 - Rule-based alerting with dedup support
 - Dashboard with acknowledgements and severity filters
-- Password-protected access (`/login`)
+- Per-teacher login accounts (`/login`)
 - AI Chatbot panel for teacher questions (local analytics)
 - One-click class period report card (print-friendly)
 - Storage control via data pruning endpoint
@@ -139,6 +143,7 @@ Rule format:
 | POST | `/api/alerts/{id}/acknowledge` | Acknowledge an alert |
 | GET | `/api/logs` | Recent logs |
 | GET | `/api/insights/teacher` | Teacher AI summary/analytics |
+| GET | `/api/insights/teacher/stream` | Real-time teacher insights stream (SSE) |
 | GET | `/api/insights/ask` | Ask teacher chatbot (summary/AI/gaming) |
 | GET | `/api/reports/class-period` | One-click HTML report card |
 | POST | `/api/maintenance/prune` | Prune old logs/alerts |
@@ -149,8 +154,10 @@ Auth routes:
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/login` | Login page |
-| POST | `/login` | Password login |
+| POST | `/login` | Teacher username+password login |
 | GET | `/logout` | End session |
+| GET | `/api/auth/me` | Current logged-in teacher |
+| GET | `/api/auth/access-log` | Recent teacher dashboard access sessions |
 
 ---
 
@@ -178,7 +185,7 @@ Auth routes:
 
 ## 🔮 Future Improvements
 
-- [ ] Per-user teacher accounts + role-based access
+- [ ] Role-based access controls
 - [ ] MFA / OTP login for dashboard
 - [ ] Scheduled PDF export + email to faculty
 - [ ] PostgreSQL for larger deployments

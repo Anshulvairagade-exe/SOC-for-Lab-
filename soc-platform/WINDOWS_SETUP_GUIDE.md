@@ -92,7 +92,7 @@ MANAGER_PORT=9000             # Port agents connect to
 AGENT_ID=agent-pc-01          # Unique agent identifier
 AGENT_HOSTNAME=lab-pc-01      # Friendly display name in dashboard
 MANAGER_HOST=192.168.1.100    # (on agent .env) IP of Manager machine
-AGENT_SEND_INTERVAL=5         # How often agent sends logs (seconds)
+AGENT_SEND_INTERVAL=1         # How often agent checks/sends logs (seconds)
 
 # ─── Dashboard API ──────────────────────────────────────────────
 DASHBOARD_HOST=0.0.0.0
@@ -233,7 +233,7 @@ MANAGER_HOST=$managerIP
 MANAGER_PORT=9000
 AGENT_ID=$agentID
 AGENT_HOSTNAME=$pcName
-AGENT_SEND_INTERVAL=5
+AGENT_SEND_INTERVAL=1
 "@ | Out-File -FilePath "C:\SOC\soc-platform\.env" -Encoding ascii
 
 # Install dependencies

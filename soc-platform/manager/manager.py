@@ -38,6 +38,7 @@ class AgentHandler(threading.Thread):
         self.engine = engine
         # Set socket options for reliability
         self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self.conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
     def run(self):
         logger.info(f"Agent connected from {self.addr}")
