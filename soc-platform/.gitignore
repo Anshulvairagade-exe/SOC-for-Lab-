@@ -48,3 +48,5 @@ desktop.ini
 .idea/
 .vscode/
 *.swp
+
+start_lab_stack.cmd

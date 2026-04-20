@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
 from html import escape
-from fastapi import FastAPI, Query, Request, Form
+from fastapi import FastAPI, Query, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -19,6 +19,7 @@ from database.db import (
     authenticate_teacher,
     create_teacher_login_session,
     close_teacher_login_session,
+    get_teacher_user,
     get_recent_teacher_access,
     generate_session_report,
     get_teacher_login_rate_limit_status,
@@ -27,6 +28,7 @@ from database.db import (
 from shared.config import (
     API_HOST,
     API_PORT,
+    DASHBOARD_AUTO_RELOAD,
     DASHBOARD_SESSION_SECRET,
     DASHBOARD_LOGIN_RATE_LIMIT_ATTEMPTS,
     DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
@@ -66,6 +68,70 @@ def _is_authenticated(request: Request) -> bool:
 def require_auth(request: Request):
     if not _is_authenticated(request):
         raise PermissionError("Unauthorized")
+
+
+def _current_user(request: Request) -> dict | None:
+    if not _is_authenticated(request):
+        return None
+
+    username = request.session.get("teacher_username", "")
+    role = str(request.session.get("teacher_role", "teacher") or "teacher").lower()
+    allowed_hostnames = request.session.get("teacher_allowed_hostnames")
+    if not username:
+        return None
+
+    if not isinstance(allowed_hostnames, list):
+        profile = get_teacher_user(username)
+        if profile:
+            return profile
+        return {
+            "username": username,
+            "role": role,
+            "allowed_hostnames": [],
+        }
+
+    return {
+        "username": username,
+        "role": "admin" if role == "admin" else "teacher",
+        "allowed_hostnames": allowed_hostnames,
+    }
+
+
+def _allowed_hostnames_for_user(user: dict | None) -> list[str] | None:
+    if not user:
+        return []
+    allowed_hostnames = user.get("allowed_hostnames") or []
+    if user.get("role") == "admin" or "*" in allowed_hostnames:
+        return None
+    return allowed_hostnames
+
+
+def _ensure_hostname_allowed(user: dict | None, hostname: str | None):
+    if not hostname:
+        return
+    allowed_hostnames = _allowed_hostnames_for_user(user)
+    if allowed_hostnames is None:
+        return
+    if hostname not in allowed_hostnames:
+        raise HTTPException(status_code=403, detail="You are not allowed to access this machine.")
+
+
+def _scope_label(user: dict | None) -> str:
+    if not user:
+        return "restricted"
+    allowed_hostnames = _allowed_hostnames_for_user(user)
+    if allowed_hostnames is None:
+        return "all machines"
+    if not allowed_hostnames:
+        return "no machine scope assigned"
+    if len(allowed_hostnames) == 1:
+        return allowed_hostnames[0]
+    return f"{len(allowed_hostnames)} machines"
+
+
+def _require_admin(user: dict | None):
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required.")
 
 
 def _login_page(error: str = "") -> str:
@@ -232,6 +298,20 @@ def _login_page(error: str = "") -> str:
           .hero {{ padding:30px 24px 10px; }}
           .hero h1 {{ font-size:30px; }}
           .panel {{ padding:18px 20px 26px; border-left:none; }}
+        }}
+        @media (max-width: 640px) {{
+          .hero {{ padding:26px 18px 10px; }}
+          .hero h1 {{ font-size:26px; }}
+          .hero p {{ font-size:14px; }}
+          .hero-metrics {{ flex-direction:column; gap:10px; }}
+          .metric {{ min-width: unset; width: 100%; }}
+          .panel {{ padding:16px; }}
+          .card {{ padding:18px; }}
+        }}
+        @media (max-width: 480px) {{
+          .hero h1 {{ font-size:24px; }}
+          .hero-badge {{ font-size:11px; }}
+          button {{ padding:10px; }}
         }}
       </style>
     </head>
@@ -790,10 +870,12 @@ def do_login(request: Request, username: str = Form(...), password: str = Form(.
     if authenticated_username:
         login_session_id = secrets.token_hex(16)
         request.session["auth_ok"] = True
-        request.session["teacher_username"] = authenticated_username
+        request.session["teacher_username"] = authenticated_username["username"]
+        request.session["teacher_role"] = authenticated_username["role"]
+        request.session["teacher_allowed_hostnames"] = authenticated_username.get("allowed_hostnames", [])
         request.session["teacher_session_id"] = login_session_id
-        create_teacher_login_session(session_id=login_session_id, username=authenticated_username)
-        record_teacher_login_attempt(username=authenticated_username, remote_addr=client_ip, success=True)
+        create_teacher_login_session(session_id=login_session_id, username=authenticated_username["username"])
+        record_teacher_login_attempt(username=authenticated_username["username"], remote_addr=client_ip, success=True)
         return RedirectResponse(url="/", status_code=302)
     record_teacher_login_attempt(username=username, remote_addr=client_ip, success=False)
     return HTMLResponse(_login_page("Invalid username or password"), status_code=401)
@@ -802,10 +884,16 @@ def do_login(request: Request, username: str = Form(...), password: str = Form(.
 @app.get("/logout")
 def logout(request: Request):
     login_session_id = request.session.get("teacher_session_id")
+    current_user = _current_user(request)
     session_report = None
     if login_session_id:
         close_teacher_login_session(login_session_id)
-        session_report = generate_session_report(login_session_id)
+        session_report = generate_session_report(
+            login_session_id,
+            viewer_username=current_user.get("username") if current_user else None,
+            is_admin=bool(current_user and current_user.get("role") == "admin"),
+            allowed_hostnames=_allowed_hostnames_for_user(current_user),
+        )
     request.session.clear()
     if session_report and session_report.get("status") == "success":
         return HTMLResponse(_session_report_page(session_report))
@@ -817,9 +905,15 @@ def api_get_last_session_report(request: Request):
     if not _is_authenticated(request):
         return {"status": "unauthorized"}
     login_session_id = request.session.get("teacher_session_id")
+    current_user = _current_user(request)
     if not login_session_id:
         return {"status": "no_session"}
-    return generate_session_report(login_session_id)
+    return generate_session_report(
+        login_session_id,
+        viewer_username=current_user.get("username") if current_user else None,
+        is_admin=bool(current_user and current_user.get("role") == "admin"),
+        allowed_hostnames=_allowed_hostnames_for_user(current_user),
+    )
 
 
 @app.get("/")
@@ -833,40 +927,54 @@ def serve_dashboard(request: Request):
 def api_get_agents(request: Request):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return get_all_agents()
+    return get_all_agents(allowed_hostnames=_allowed_hostnames_for_user(_current_user(request)))
 
 @app.get("/api/alerts")
-def api_get_alerts(request: Request, severity: str = None, limit: int = Query(500), date: str = None):
+def api_get_alerts(request: Request, severity: str = None, limit: int = Query(500), date: str = None, hostname: str = None):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return get_alerts(limit=limit, severity=severity, date_str=date)
+    current_user = _current_user(request)
+    _ensure_hostname_allowed(current_user, hostname)
+    return get_alerts(
+        limit=limit,
+        severity=severity,
+        date_str=date,
+        hostname=hostname,
+        allowed_hostnames=_allowed_hostnames_for_user(current_user),
+    )
 
 @app.get("/api/alerts/stats")
 def api_get_alert_stats(request: Request):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return get_alert_counts()
+    return get_alert_counts(allowed_hostnames=_allowed_hostnames_for_user(_current_user(request)))
 
 @app.post("/api/alerts/{alert_id}/acknowledge")
 def api_ack_alert(request: Request, alert_id: int):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    acknowledge_alert(alert_id)
+    updated = acknowledge_alert(alert_id, allowed_hostnames=_allowed_hostnames_for_user(_current_user(request)))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Alert not found in your scope.")
     return {"status": "success"}
 
 @app.get("/api/logs")
 def api_get_logs(request: Request, limit: int = 100):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return get_logs(limit=limit)
+    return get_logs(limit=limit, allowed_hostnames=_allowed_hostnames_for_user(_current_user(request)))
 
 
 @app.get("/api/auth/me")
 def api_auth_me(request: Request):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
+    current_user = _current_user(request)
     return {
         "username": request.session.get("teacher_username"),
+        "role": current_user.get("role") if current_user else "teacher",
+        "allowed_hostnames": current_user.get("allowed_hostnames", []) if current_user else [],
+        "scope_label": _scope_label(current_user),
     }
 
 
@@ -874,26 +982,43 @@ def api_auth_me(request: Request):
 def api_teacher_access_log(request: Request, limit: int = Query(50)):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return get_recent_teacher_access(limit=limit)
+    current_user = _current_user(request)
+    return get_recent_teacher_access(
+        limit=limit,
+        viewer_username=current_user.get("username") if current_user else None,
+        is_admin=bool(current_user and current_user.get("role") == "admin"),
+    )
 
 
 @app.get("/api/insights/teacher")
 def api_teacher_insights(request: Request, minutes: int = Query(60), hostname: str = None):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return build_teacher_insights(minutes=minutes, hostname=hostname)
+    current_user = _current_user(request)
+    _ensure_hostname_allowed(current_user, hostname)
+    return build_teacher_insights(
+        minutes=minutes,
+        hostname=hostname,
+        allowed_hostnames=_allowed_hostnames_for_user(current_user),
+    )
 
 
 @app.get("/api/insights/teacher/stream")
 async def api_teacher_insights_stream(request: Request, minutes: int = Query(60), hostname: str = None):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
+    current_user = _current_user(request)
+    _ensure_hostname_allowed(current_user, hostname)
 
     async def event_generator():
         while True:
             if await request.is_disconnected():
                 break
-            payload = build_teacher_insights(minutes=minutes, hostname=hostname)
+            payload = build_teacher_insights(
+                minutes=minutes,
+                hostname=hostname,
+                allowed_hostnames=_allowed_hostnames_for_user(current_user),
+            )
             yield f"data: {json.dumps(payload)}\n\n"
             await asyncio.sleep(3)
 
@@ -911,14 +1036,27 @@ async def api_teacher_insights_stream(request: Request, minutes: int = Query(60)
 def api_teacher_ask(request: Request, question: str = Query(...), minutes: int = Query(60), hostname: str = None):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    return answer_teacher_query(question=question, minutes=minutes, hostname=hostname)
+    current_user = _current_user(request)
+    _ensure_hostname_allowed(current_user, hostname)
+    return answer_teacher_query(
+        question=question,
+        minutes=minutes,
+        hostname=hostname,
+        allowed_hostnames=_allowed_hostnames_for_user(current_user),
+    )
 
 
 @app.get("/api/reports/class-period")
 def api_class_period_report(request: Request, minutes: int = Query(60), hostname: str = None):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
-    html = build_class_period_report_html(minutes=minutes, hostname=hostname)
+    current_user = _current_user(request)
+    _ensure_hostname_allowed(current_user, hostname)
+    html = build_class_period_report_html(
+        minutes=minutes,
+        hostname=hostname,
+        allowed_hostnames=_allowed_hostnames_for_user(current_user),
+    )
     return HTMLResponse(content=html)
 
 
@@ -926,6 +1064,7 @@ def api_class_period_report(request: Request, minutes: int = Query(60), hostname
 def api_prune_data(request: Request, log_days: int = Query(7), alert_days: int = Query(30)):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
+    _require_admin(_current_user(request))
     deleted = prune_old_data(log_days=log_days, alert_days=alert_days)
     return {
         "status": "success",
@@ -940,8 +1079,9 @@ def api_prune_data(request: Request, log_days: int = Query(7), alert_days: int =
 def api_reload_rules(request: Request):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
+    _require_admin(_current_user(request))
     # In a full implementation, we'd signal the manager process.
     return {"status": "success", "message": "Reload signal sent (mocked)"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host=API_HOST, port=API_PORT, reload=False)
+    uvicorn.run("dashboard.api:app", host=API_HOST, port=API_PORT, reload=DASHBOARD_AUTO_RELOAD)

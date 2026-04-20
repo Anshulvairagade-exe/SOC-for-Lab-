@@ -20,6 +20,27 @@ GAME_DOMAIN_KEYWORDS = [
 ]
 
 
+def _normalize_allowed_hostnames(allowed_hostnames: list[str] | None) -> list[str] | None:
+    if allowed_hostnames is None:
+        return None
+    normalized = sorted({str(item).strip() for item in allowed_hostnames if str(item).strip()})
+    if "*" in normalized:
+        return None
+    return normalized
+
+
+def _append_hostname_scope(query: str, params: list, column_name: str, allowed_hostnames: list[str] | None) -> tuple[str, list]:
+    normalized = _normalize_allowed_hostnames(allowed_hostnames)
+    if normalized is None:
+        return query, params
+    if not normalized:
+        return query + " AND 1=0", params
+    placeholders = ",".join("?" for _ in normalized)
+    query += f" AND {column_name} IN ({placeholders})"
+    params.extend(normalized)
+    return query, params
+
+
 def _priority_rank(priority: str) -> int:
     return {
         "Immediate review": 4,
@@ -201,27 +222,35 @@ def _host_summary(hostname: str, since_ts: float) -> dict:
     }
 
 
-def build_teacher_insights(minutes: int = 60, hostname: str | None = None) -> dict:
+def build_teacher_insights(
+    minutes: int = 60,
+    hostname: str | None = None,
+    allowed_hostnames: list[str] | None = None,
+) -> dict:
     minutes = max(5, min(int(minutes), 1440))
     since_ts = time.time() - (minutes * 60)
+    normalized_allowed_hostnames = _normalize_allowed_hostnames(allowed_hostnames)
 
     conn = sqlite3.connect(DB_PATH)
     if hostname:
-        host_rows = conn.execute(
-            "SELECT DISTINCT hostname FROM logs WHERE hostname = ?", (hostname,)
-        ).fetchall()
+        query = "SELECT DISTINCT hostname FROM logs WHERE hostname = ?"
+        params: list = [hostname]
+        query, params = _append_hostname_scope(query, params, "hostname", normalized_allowed_hostnames)
+        host_rows = conn.execute(query, tuple(params)).fetchall()
     else:
-        host_rows = conn.execute(
-            """
+        query = """
             SELECT hostname, MAX(timestamp) AS last_ts
             FROM logs
             WHERE timestamp >= ?
+        """
+        params = [since_ts]
+        query, params = _append_hostname_scope(query, params, "hostname", normalized_allowed_hostnames)
+        query += """
             GROUP BY hostname
             ORDER BY last_ts DESC
             LIMIT 30
-            """,
-            (since_ts,),
-        ).fetchall()
+        """
+        host_rows = conn.execute(query, tuple(params)).fetchall()
     conn.close()
 
     hostnames = [r[0] for r in host_rows] if host_rows else []
@@ -268,13 +297,18 @@ def build_teacher_insights(minutes: int = 60, hostname: str | None = None) -> di
     }
 
 
-def answer_teacher_query(question: str, minutes: int = 60, hostname: str | None = None) -> dict:
+def answer_teacher_query(
+    question: str,
+    minutes: int = 60,
+    hostname: str | None = None,
+    allowed_hostnames: list[str] | None = None,
+) -> dict:
     """
     Local intent-based Q&A for teachers.
     Supported intents: summary, AI usage, gaming usage.
     """
     q = (question or "").strip().lower()
-    insights = build_teacher_insights(minutes=minutes, hostname=hostname)
+    insights = build_teacher_insights(minutes=minutes, hostname=hostname, allowed_hostnames=allowed_hostnames)
     hosts = insights.get("hosts", [])
 
     intent = "summary"
@@ -375,8 +409,12 @@ def _class_score(hosts: list[dict]) -> int:
         return min(score, 100)
 
 
-def build_class_period_report_html(minutes: int = 60, hostname: str | None = None) -> str:
-        insights = build_teacher_insights(minutes=minutes, hostname=hostname)
+def build_class_period_report_html(
+        minutes: int = 60,
+        hostname: str | None = None,
+        allowed_hostnames: list[str] | None = None,
+) -> str:
+        insights = build_teacher_insights(minutes=minutes, hostname=hostname, allowed_hostnames=allowed_hostnames)
         hosts = insights.get("hosts", [])
         queue = insights.get("action_queue", [])
         signals = insights.get("class_signals", {})

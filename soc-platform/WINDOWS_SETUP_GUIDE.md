@@ -97,6 +97,8 @@ AGENT_SEND_INTERVAL=1         # How often agent checks/sends logs (seconds)
 # ─── Dashboard API ──────────────────────────────────────────────
 DASHBOARD_HOST=0.0.0.0
 DASHBOARD_PORT=8000
+# Auto-restart dashboard API when source files change
+DASHBOARD_AUTO_RELOAD=true
 
 # ─── Security ───────────────────────────────────────────────────
 AUTH_SECRET_KEY=change-this-to-a-long-random-string
@@ -121,6 +123,12 @@ ALERT_RETENTION_DAYS=90
 ---
 
 ## 🚀 Running the Platform
+
+### Fast launch (all 3 components)
+```bat
+start_lab_stack.cmd
+```
+This opens Manager, Dashboard, and Agent in separate terminals.
 
 ### Order of Operations (start in this exact order)
 
