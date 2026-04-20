@@ -260,13 +260,13 @@
     .date-input   { color-scheme: dark; }
 
     /* ─── Alert Table ─────────────────────────────────────────────── */
-    .alert-list { overflow-y: auto; max-height: calc(100vh - 315px); min-height: 320px; }
+    .alert-list { overflow-y: auto; max-height: calc(100vh - 280px); min-height: 400px; }
     .alert-feed-card {
       min-height: 0;
     }
     .alert-feed-card .alert-list {
-      max-height: calc(100vh - 315px);
-      min-height: 320px;
+      max-height: calc(100vh - 280px);
+      min-height: 400px;
     }
     table { width: 100%; border-collapse: collapse; }
     thead th {
@@ -445,8 +445,80 @@
 
     .bottom-ai {
       max-width: 1600px;
-      margin: 0 auto;
+      margin: 16px auto 0;
       padding: 0 32px 24px;
+    }
+    .bottom-ai .card {
+      padding: 0 !important;
+      display: flex;
+      flex-direction: column;
+      max-height: 580px;
+    }
+    .ai-chatbot-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: var(--bg-surface-2);
+    }
+    .ai-chatbot-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 300px;
+    }
+    .ai-chat-section {
+      margin-bottom: 4px;
+    }
+    .ai-chat-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .ai-stat-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .ai-quick-buttons {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .ai-input-group {
+      display: flex;
+      gap: 6px;
+    }
+    .ai-input-group input {
+      flex: 1;
+      font-size: 12px;
+    }
+    .ai-answer-box {
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .ai-answer-box strong {
+      color: var(--accent);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .ai-answer-item {
+      font-size: 11px;
+      color: var(--text-2);
+      margin-top: 3px;
     }
 
     .icon-inline { margin-right: 6px; }
@@ -458,8 +530,11 @@
       .bottom-ai { padding: 0 16px 18px; }
       .alert-list,
       .alert-feed-card .alert-list {
-        max-height: 60vh;
-        min-height: 260px;
+        max-height: 55vh;
+        min-height: 300px;
+      }
+      .bottom-ai .card {
+        max-height: none;
       }
     }
   </style>
@@ -1200,14 +1275,14 @@
         </main>
 
         <section className="bottom-ai">
-          <div className="card" style={{padding:'16px 18px'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div className="card">
+            <div className="ai-chatbot-header">
               <div className="card-title" style={{marginBottom:0}}><Icon icon="🤖" className="icon-inline" />AI Chatbot</div>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <select
                   value={insightMinutes}
                   onChange={e=>setInsightMinutes(parseInt(e.target.value,10))}
-                  style={{background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'4px 8px',fontSize:12}}
+                  style={{background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:6,padding:'5px 8px',fontSize:11}}
                 >
                   <option value={30}>30m</option>
                   <option value={60}>1h</option>
@@ -1216,7 +1291,7 @@
                 </select>
                 <button
                   className="ack-btn"
-                  style={{padding:'5px 8px',fontSize:11}}
+                  style={{padding:'5px 10px',fontSize:11}}
                   onClick={() => {
                     let url = `${API_BASE}/reports/class-period?minutes=${insightMinutes}`;
                     if (agentFilter) url += `&hostname=${encodeURIComponent(agentFilter)}`;
@@ -1224,112 +1299,97 @@
                   }}
                   title="One-click printable class report"
                 >
-                  <Icon icon="📝" className="icon-tight" />Report Card
+                  📝 Report
                 </button>
               </div>
             </div>
-            {!insights || !insights.hosts || insights.hosts.length === 0 ? (
-              <div style={{fontSize:12,color:'var(--text-3)'}}>No recent activity in selected window.</div>
-            ) : (
-              <div>
-                <div style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>{insights.class_overview}</div>
-                {insights.class_signals && (
-                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
-                    <span className="src-badge"><Icon icon="🤖" className="icon-tight" />AI: {insights.class_signals.ai_usage_machines || 0}</span>
-                    <span className="src-badge"><Icon icon="🎮" className="icon-tight" />Games: {insights.class_signals.gaming_machines || 0}</span>
-                    <span className="src-badge"><Icon icon="📸" className="icon-tight" />Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
-                    <span className="src-badge"><Icon icon="🔌" className="icon-tight" />USB: {insights.class_signals.usb_machines || 0}</span>
-                    <span className="src-badge"><Icon icon="🚫" className="icon-tight" />Blocked: {insights.class_signals.blocked_browsing_machines || 0}</span>
-                  </div>
-                )}
 
-                {insights.action_queue && insights.action_queue.length > 0 && (
-                  <div style={{marginBottom:10}}>
-                    <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Teacher action queue</div>
-                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                      {insights.action_queue.slice(0,3).map((q, i) => (
-                        <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                          <strong>{q.hostname}</strong> · {q.priority} · {q.reason}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            <div className="ai-chatbot-content">
+              {!insights || !insights.hosts || insights.hosts.length === 0 ? (
+                <div style={{fontSize:12,color:'var(--text-3)',textAlign:'center',paddingTop:60}}>No recent activity.</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:10,height:'100%'}}>
+                  {/* Overview */}
+                  <div style={{fontSize:12,color:'var(--text-2)',lineHeight:1.4}}>{insights.class_overview}</div>
 
-                <div style={{fontSize:13,fontWeight:600,color:'var(--text)',marginBottom:8}}>
-                  {insights.hosts[0].brief}
-                </div>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top sites</div>
-                <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
-                  {(insights.hosts[0].top_domains || []).slice(0,3).join(', ') || '—'}
-                </div>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Top commands</div>
-                <div style={{fontSize:12,color:'var(--text)',marginBottom:10}}>
-                  {(insights.hosts[0].top_commands || []).slice(0,3).join(' | ') || '—'}
-                </div>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Most important events</div>
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  {(insights.hosts[0].important_events || []).slice(0,3).map((ev, idx) => (
-                    <div key={idx} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                      <span style={{fontWeight:700,marginRight:6}}>{ev.severity}</span>
-                      <span>{humaniseRule(ev.rule_name)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {insights.hosts[0].recommendations && insights.hosts[0].recommendations.length > 0 && (
-                  <div style={{marginTop:10}}>
-                    <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Recommended teacher actions</div>
-                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                      {(insights.hosts[0].recommendations || []).slice(0,3).map((rec, i) => (
-                        <div key={i} style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                          • {rec}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{marginTop:12,fontSize:11,color:'var(--text-3)',marginBottom:6}}>Ask AI chatbot</div>
-                <div style={{display:'flex',gap:6,marginBottom:6}}>
-                  <input
-                    type="text"
-                    value={askQuery}
-                    onChange={e=>setAskQuery(e.target.value)}
-                    placeholder="e.g. anyone used AI?"
-                    style={{flex:1,background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 9px',fontSize:12}}
-                    onKeyDown={e => { if (e.key === 'Enter') askTeacher(); }}
-                  />
-                  <button
-                    onClick={askTeacher}
-                    disabled={askLoading}
-                    className="ack-btn"
-                    style={{padding:'6px 10px'}}
-                  >
-                    {askLoading ? '...' : 'Ask'}
-                  </button>
-                </div>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-                  <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('summary')}>Summary</button>
-                  <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('anyone used ai?')}>AI usage</button>
-                  <button className="ack-btn" style={{padding:'4px 8px',fontSize:11}} onClick={()=>askTeacherWith('who was playing games?')}>Gaming</button>
-                </div>
-                {askResult && (
-                  <div style={{fontSize:12,background:'var(--bg-surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px'}}>
-                    <div style={{fontWeight:600,marginBottom:4}}>Answer: {askResult.answer}</div>
-                    {(askResult.matches || []).slice(0,3).map((m, i) => (
-                      <div key={i} style={{fontSize:11,color:'var(--text-2)',marginTop:3}}>
-                        • {m.hostname}
-                        {m.alert_count !== undefined ? ` | Alerts: ${m.alert_count}` : ''}
-                        {m.priority ? ` | ${m.priority}` : ''}
-                        {m.ai_domains ? ` | AI: ${m.ai_domains.join(', ')}` : ''}
-                        {m.game_domains ? ` | Games: ${m.game_domains.join(', ')}` : ''}
+                  {/* Stats Badges */}
+                  {insights.class_signals && (
+                    <div>
+                      <div className="ai-chat-section-title">Activity Summary</div>
+                      <div className="ai-stat-badges">
+                        <span className="src-badge"><Icon icon="🤖" className="icon-tight" />AI: {insights.class_signals.ai_usage_machines || 0}</span>
+                        <span className="src-badge"><Icon icon="🎮" className="icon-tight" />Games: {insights.class_signals.gaming_machines || 0}</span>
+                        <span className="src-badge"><Icon icon="📸" className="icon-tight" />Screenshots: {insights.class_signals.screenshot_machines || 0}</span>
+                        <span className="src-badge"><Icon icon="🔌" className="icon-tight" />USB: {insights.class_signals.usb_machines || 0}</span>
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  {/* Action Queue */}
+                  {insights.action_queue && insights.action_queue.length > 0 && (
+                    <div>
+                      <div className="ai-chat-section-title">Priority Actions</div>
+                      {insights.action_queue.slice(0,2).map((q, i) => (
+                        <div key={i} style={{fontSize:11,color:'var(--text)',marginBottom:4}}>
+                          <strong>{q.hostname}</strong> <span style={{color:'var(--text-3)'}}>{q.priority}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Top Activity */}
+                  {insights.hosts[0] && (
+                    <div>
+                      <div className="ai-chat-section-title">Top Activity</div>
+                      <div style={{fontSize:11,color:'var(--text)',lineHeight:1.5}}>
+                        <div><strong>Sites:</strong> {(insights.hosts[0].top_domains || []).slice(0,2).join(', ') || '—'}</div>
+                        <div><strong>Commands:</strong> {(insights.hosts[0].top_commands || []).slice(0,2).join(', ') || '—'}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ask Section - Sticky at bottom */}
+                  <div style={{marginTop:'auto',borderTop:'1px solid var(--border)',paddingTop:8}}>
+                    <div className="ai-chat-section-title">Ask AI</div>
+                    <div className="ai-input-group">
+                      <input
+                        type="text"
+                        value={askQuery}
+                        onChange={e=>setAskQuery(e.target.value)}
+                        placeholder="e.g. anyone used AI?"
+                        style={{background:'var(--bg-surface-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:6,padding:'6px 9px',fontSize:11}}
+                        onKeyDown={e => { if (e.key === 'Enter') askTeacher(); }}
+                      />
+                      <button
+                        onClick={askTeacher}
+                        disabled={askLoading}
+                        className="ack-btn"
+                        style={{padding:'6px 10px',fontSize:11}}
+                      >
+                        {askLoading ? '...' : 'Ask'}
+                      </button>
+                    </div>
+
+                    <div className="ai-quick-buttons" style={{marginTop:6}}>
+                      <button className="ack-btn" style={{padding:'4px 8px',fontSize:10}} onClick={()=>askTeacherWith('summary')}>Summary</button>
+                      <button className="ack-btn" style={{padding:'4px 8px',fontSize:10}} onClick={()=>askTeacherWith('anyone used ai?')}>AI Usage</button>
+                      <button className="ack-btn" style={{padding:'4px 8px',fontSize:10}} onClick={()=>askTeacherWith('who was playing games?')}>Gaming</button>
+                    </div>
+
+                    {askResult && (
+                      <div className="ai-answer-box" style={{marginTop:8}}>
+                        <strong>{askResult.answer}</strong>
+                        {(askResult.matches || []).slice(0,2).map((m, i) => (
+                          <div key={i} className="ai-answer-item">
+                            • {m.hostname} {m.alert_count ? `(${m.alert_count} alerts)` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
