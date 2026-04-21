@@ -19,13 +19,13 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-MANAGER_HOST = os.getenv("MANAGER_HOST", "192.168.174.129")           # Listen on all interfaces
+MANAGER_HOST = os.getenv("MANAGER_HOST", "139.59.50.143")           # Listen on all interfaces
 MANAGER_PORT = int(os.getenv("MANAGER_PORT", "9000"))         # Port agents connect to
 MANAGER_BUFFER_SIZE = 8192         # Increased buffer for bulk events
 MANAGER_MAX_CONNECTIONS = 100      # Max concurrent agent connections
 
 # --- API Server ---
-API_HOST = os.getenv("API_HOST", "192.168.174.129")
+API_HOST = os.getenv("API_HOST", "139.59.50.143")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 DASHBOARD_AUTO_RELOAD = _env_bool("DASHBOARD_AUTO_RELOAD", True)
 
@@ -104,7 +104,7 @@ DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "soc_platform.db"))        # SQLit
 # --- Agent ---
 AGENT_SEND_INTERVAL = int(os.getenv("AGENT_SEND_INTERVAL", "1"))            # Seconds between log checks
 AGENT_ID = os.getenv("AGENT_ID", "agent-001")             # Unique ID per machine (change per install)
-AGENT_HOSTNAME = os.getenv("AGENT_HOSTNAME", "lab-machine-1")   # Human-readable name
+AGENT_HOSTNAME = os.getenv("AGENT_HOSTNAME", "Master")   # Human-readable name
 AGENT_RECONNECT_DELAY = 5          # Seconds to wait before reconnecting
 AGENT_HEARTBEAT_INTERVAL = 10      # Seconds between heartbeats
 
