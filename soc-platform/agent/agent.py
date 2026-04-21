@@ -51,9 +51,7 @@ class Agent:
     def __init__(self):
         self.agent_id = os.getenv("AGENT_ID", AGENT_ID)
         self.hostname = os.getenv("AGENT_HOSTNAME", AGENT_HOSTNAME)
-        self.manager_host = os.getenv("MANAGER_HOST", "139.59.50.143")
-        if self.manager_host == "139.59.50.143":
-            self.manager_host = "139.59.50.143"
+        self.manager_host = os.getenv("MANAGER_HOST", MANAGER_HOST)
         self.manager_port = int(os.getenv("MANAGER_PORT", MANAGER_PORT))
         self.send_interval = int(os.getenv("AGENT_SEND_INTERVAL", AGENT_SEND_INTERVAL))
         self.heartbeat_interval = int(os.getenv("AGENT_HEARTBEAT_INTERVAL", AGENT_HEARTBEAT_INTERVAL))
