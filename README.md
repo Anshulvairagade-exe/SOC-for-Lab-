@@ -86,13 +86,13 @@ python -m agent.agent
 | `MANAGER_PORT` | Manager TCP port (default `9000`) |
 | `API_HOST` | Dashboard API host (default `0.0.0.0`) |
 | `API_PORT` | Dashboard API port (default `8000`) |
-| `TEACHER_ACCOUNTS` | Teacher credentials as `user:pass,user2:pass2,...` |
+| `TEACHER_ACCOUNTS` | Teacher credentials as `user:pass,user2:pass2,...` (full machine visibility by default) |
 | `DASHBOARD_SESSION_SECRET` | Session secret key |
 | `AGENT_ID` | Unique machine/agent id |
 | `AGENT_HOSTNAME` | Human-readable machine name |
 | `AGENT_SEND_INTERVAL` | Agent send interval in seconds |
 
-Default auto-created teacher accounts (when `TEACHER_ACCOUNTS` is not set):
+Default auto-created teacher accounts (when `TEACHER_ACCOUNTS` is not set, all with full machine visibility):
 `teacher01/Lab@Teacher01`, `teacher02/Lab@Teacher02`, `teacher03/Lab@Teacher03`,
 `teacher04/Lab@Teacher04`, `teacher05/Lab@Teacher05`, `teacher06/Lab@Teacher06`,
 `teacher07/Lab@Teacher07`, `teacher08/Lab@Teacher08`, `teacher09/Lab@Teacher09`.
