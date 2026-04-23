@@ -13,7 +13,16 @@ from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from database.db import init_db, get_all_agents, get_alerts, get_alert_counts, acknowledge_alert, get_logs
+from database.db import (
+    init_db,
+    get_all_agents,
+    get_alerts,
+    get_alert_counts,
+    acknowledge_alert,
+    get_logs,
+    get_agent_by_id,
+    queue_agent_command,
+)
 from database.db import prune_old_data
 from database.db import (
     authenticate_teacher,
@@ -59,6 +68,7 @@ app.add_middleware(
 )
 
 DASHBOARD_PATH = os.path.join(os.path.dirname(__file__), "templates", "index.html")
+TERMINATE_PROCESS_TARGETS = {"chrome", "firefox", "brave", "terminal"}
 
 
 def _is_authenticated(request: Request) -> bool:
@@ -928,6 +938,60 @@ def api_get_agents(request: Request):
     if not _is_authenticated(request):
         return HTMLResponse("Unauthorized", status_code=401)
     return get_all_agents(allowed_hostnames=_allowed_hostnames_for_user(_current_user(request)))
+
+
+@app.post("/api/agents/{agent_id}/terminate-process")
+async def api_terminate_agent_process(request: Request, agent_id: str):
+    if not _is_authenticated(request):
+        return HTMLResponse("Unauthorized", status_code=401)
+
+    current_user = _current_user(request)
+    agent = get_agent_by_id(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found.")
+
+    _ensure_hostname_allowed(current_user, agent.get("hostname"))
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload.")
+
+    process_name = str((payload or {}).get("process_name") or "").strip().lower()
+    if process_name not in TERMINATE_PROCESS_TARGETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported process target. Allowed: {', '.join(sorted(TERMINATE_PROCESS_TARGETS))}",
+        )
+    pid = (payload or {}).get("pid")
+    if pid is not None:
+        try:
+            pid = int(pid)
+            if pid <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid PID.")
+
+    queued = queue_agent_command(
+        agent_id=agent["agent_id"],
+        hostname=agent["hostname"],
+        requested_by=current_user.get("username") if current_user else "unknown",
+        action="terminate_process",
+        payload={"process_name": process_name, "pid": pid},
+    )
+    return {
+        "status": "queued",
+        "command_id": queued.get("id"),
+        "agent_id": agent["agent_id"],
+        "hostname": agent["hostname"],
+        "process_name": process_name,
+        "pid": pid,
+        "message": (
+            f"Stop request queued for PID {pid} ({process_name}) on {agent['hostname']}."
+            if pid is not None
+            else f"Stop request queued for {process_name} on {agent['hostname']}."
+        ),
+    }
 
 @app.get("/api/alerts")
 def api_get_alerts(request: Request, severity: str = None, limit: int = Query(500), date: str = None, hostname: str = None):

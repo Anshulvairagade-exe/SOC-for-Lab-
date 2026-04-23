@@ -156,6 +156,23 @@ def init_db():
         )
     """)
 
+    # --- Agent control commands queue ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agent_commands (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT NOT NULL,
+            hostname TEXT NOT NULL,
+            requested_by TEXT NOT NULL,
+            action TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            result_message TEXT,
+            requested_at REAL NOT NULL,
+            dispatched_at REAL,
+            completed_at REAL
+        )
+    """)
+
     # --- Dashboard teacher users ---
     cur.execute("""
         CREATE TABLE IF NOT EXISTS teacher_users (
@@ -240,6 +257,9 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alerts_ack ON alerts(acknowledged)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agent_commands_agent_status ON agent_commands(agent_id, status, requested_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agent_commands_status ON agent_commands(status)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agent_commands_requested_at ON agent_commands(requested_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_teacher_login_username ON teacher_login_sessions(username)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_teacher_login_login_at ON teacher_login_sessions(login_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_teacher_attempt_username ON teacher_login_attempts(username)")
@@ -343,6 +363,144 @@ def get_all_agents(allowed_hostnames: list[str] | None = None) -> list[dict]:
     rows = conn.execute(query, tuple(params)).fetchall()
     conn.close(); _local.conn = None
     return [dict(r) for r in rows]
+
+
+def get_agent_by_id(agent_id: str) -> dict | None:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM agents WHERE agent_id = ?",
+        (agent_id,),
+    ).fetchone()
+    conn.close(); _local.conn = None
+    return dict(row) if row else None
+
+
+def queue_agent_command(
+    agent_id: str,
+    hostname: str,
+    requested_by: str,
+    action: str,
+    payload: dict,
+) -> dict:
+    conn = get_connection()
+    requested_at = time.time()
+    payload_json = json.dumps(payload)
+    cur = conn.execute(
+        """
+        INSERT INTO agent_commands (
+            agent_id, hostname, requested_by, action, payload, status, requested_at
+        )
+        VALUES (?, ?, ?, ?, ?, 'queued', ?)
+        """,
+        (agent_id, hostname, requested_by, action, payload_json, requested_at),
+    )
+    command_id = cur.lastrowid
+    conn.commit()
+    row = conn.execute(
+        """
+        SELECT id, agent_id, hostname, requested_by, action, payload, status, requested_at
+        FROM agent_commands
+        WHERE id = ?
+        """,
+        (command_id,),
+    ).fetchone()
+    conn.close(); _local.conn = None
+    return dict(row) if row else {}
+
+
+def claim_queued_agent_commands(agent_id: str, limit: int = 5) -> list[dict]:
+    conn = get_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT id, agent_id, hostname, requested_by, action, payload, status, requested_at
+        FROM agent_commands
+        WHERE agent_id = ? AND status = 'queued'
+        ORDER BY requested_at ASC
+        LIMIT ?
+        """,
+        (agent_id, max(1, int(limit))),
+    ).fetchall()
+
+    claimed: list[dict] = []
+    now = time.time()
+    for row in rows:
+        updated = cur.execute(
+            """
+            UPDATE agent_commands
+            SET status = 'dispatching', dispatched_at = ?
+            WHERE id = ? AND status = 'queued'
+            """,
+            (now, row["id"]),
+        )
+        if not updated.rowcount:
+            continue
+
+        row_payload = row["payload"]
+        try:
+            parsed_payload = json.loads(row_payload) if row_payload else {}
+        except Exception:
+            parsed_payload = {}
+
+        claimed.append(
+            {
+                "id": row["id"],
+                "agent_id": row["agent_id"],
+                "hostname": row["hostname"],
+                "requested_by": row["requested_by"],
+                "action": row["action"],
+                "payload": parsed_payload,
+                "status": "dispatching",
+                "requested_at": row["requested_at"],
+                "dispatched_at": now,
+            }
+        )
+
+    conn.commit()
+    conn.close(); _local.conn = None
+    return claimed
+
+
+def mark_agent_command_sent(command_id: int):
+    conn = get_connection()
+    conn.execute(
+        """
+        UPDATE agent_commands
+        SET status = 'sent', dispatched_at = COALESCE(dispatched_at, ?)
+        WHERE id = ? AND status IN ('queued', 'dispatching')
+        """,
+        (time.time(), command_id),
+    )
+    conn.commit()
+    conn.close(); _local.conn = None
+
+
+def mark_agent_command_failed(command_id: int, result_message: str):
+    conn = get_connection()
+    conn.execute(
+        """
+        UPDATE agent_commands
+        SET status = 'failed', result_message = ?, completed_at = ?
+        WHERE id = ?
+        """,
+        (result_message[:500], time.time(), command_id),
+    )
+    conn.commit()
+    conn.close(); _local.conn = None
+
+
+def complete_agent_command(command_id: int, success: bool, result_message: str = ""):
+    conn = get_connection()
+    conn.execute(
+        """
+        UPDATE agent_commands
+        SET status = ?, result_message = ?, completed_at = ?
+        WHERE id = ?
+        """,
+        ("completed" if success else "failed", (result_message or "")[:500], time.time(), command_id),
+    )
+    conn.commit()
+    conn.close(); _local.conn = None
 
 
 # ─────────────────────────────────────────────

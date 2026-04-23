@@ -339,6 +339,35 @@
       box-shadow: 0 2px 8px rgba(88,166,255,.35);
       transform: translateY(-1px);
     }
+    .terminate-btn {
+      background: var(--critical-bg);
+      border: 1px solid var(--critical-br);
+      color: var(--critical);
+      padding: 5px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .terminate-btn:hover:not(:disabled) {
+      background: var(--critical);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(248,81,73,.3);
+      transform: translateY(-1px);
+    }
+    .terminate-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
     /* ─── Expand Detail ───────────────────────────────────────────── */
     .expand-chevron { font-size: 11px; color: var(--text-3); transition: transform .2s; display: inline-block; }
@@ -392,6 +421,44 @@
     .status-label-badge.online  { background: var(--low-bg);  color: var(--online);  border: 1px solid var(--low-br); }
     .status-label-badge.offline { background: var(--bg-hover); color: var(--offline); border: 1px solid var(--border); }
     .agent-last-seen { font-size: 11px; color: var(--text-3); }
+    .agent-controls {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .agent-control-select {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg-surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-family: inherit;
+    }
+    .agent-control-btn {
+      background: var(--critical-bg);
+      color: var(--critical);
+      border: 1px solid var(--critical-br);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .agent-control-btn:hover:not(:disabled) {
+      background: var(--critical);
+      color: #fff;
+    }
+    .agent-control-btn:disabled,
+    .agent-control-select:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
 
     /* ─── Toast Notifications ─────────────────────────────────────── */
     .toast-wrapper {
@@ -651,6 +718,12 @@
 <script type="text/babel">
   const { useState, useEffect, useRef, useMemo, useCallback } = React;
   const API_BASE = '/api';
+  const TERMINATE_TARGETS = [
+    { value: 'chrome', label: 'Chrome / Chromium' },
+    { value: 'firefox', label: 'Firefox' },
+    { value: 'brave', label: 'Brave Browser' },
+    { value: 'terminal', label: 'Terminal / Shell' },
+  ];
 
   /* ─── Time Helpers ────────────────────────────────────────────── */
   function fmtTime(ts) {
@@ -927,6 +1000,29 @@
     return { icon: '📋', label: 'Event' };
   }
 
+  function inferTerminateTarget(log, ruleName) {
+    const text = `${log || ''} ${ruleName || ''}`.toLowerCase();
+    if (!text.trim()) return null;
+    if (/browser\s*=\s*brave\b|\bbrave(\.exe| browser)?\b/i.test(text)) return 'brave';
+    if (/browser\s*=\s*firefox\b|\bfirefox(\.exe)?\b/i.test(text)) return 'firefox';
+    if (/browser\s*=\s*chrome\b|\bchrome(\.exe|ium)?\b|\bchromium\b/i.test(text)) return 'chrome';
+    if (/terminal_command|powershell_command|powershell:|cmd\.exe|pwsh\.exe|powershell\.exe|windowsterminal\.exe|wt\.exe|\bterminal\b|\bshell\b/i.test(text)) {
+      return 'terminal';
+    }
+    return null;
+  }
+
+  function extractProcessPid(log) {
+    const match = `${log || ''}`.match(/\bPID[=:]?\s*(\d+)/i);
+    if (!match) return null;
+    const pid = Number(match[1]);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  }
+
+  function terminateTargetLabel(target) {
+    return (TERMINATE_TARGETS.find(item => item.value === target) || {}).label || target;
+  }
+
   /* ─── Toast ───────────────────────────────────────────────────── */
   function Toast({ t, onClose }) {
     return (
@@ -991,11 +1087,20 @@
     const [askQuery, setAskQuery] = useState('');
     const [askResult, setAskResult] = useState(null);
     const [askLoading, setAskLoading] = useState(false);
+    const [terminateTargetByAgent, setTerminateTargetByAgent] = useState({});
+    const [terminateBusyByAgent, setTerminateBusyByAgent] = useState({});
     const [expanded,    setExpanded]    = useState(new Set());
     const [toasts,      setToasts]      = useState([]);
 
     const knownIds = useRef(new Set());
     const isFirst  = useRef(true);
+    const agentById = useMemo(() => {
+      const next = {};
+      agents.forEach(agent => {
+        next[agent.agent_id] = agent;
+      });
+      return next;
+    }, [agents]);
 
     /* ─ Fetch ─ */
     const fetchData = useCallback(async () => {
@@ -1066,6 +1171,76 @@
       await fetch(`${API_BASE}/alerts/${id}/acknowledge`, { method:'POST' });
       setAlerts(p => p.filter(a => a.id !== id));
       setExpanded(p => { const n = new Set(p); n.delete(id); return n; });
+    };
+
+    const handleTerminateProcess = async (agent, e) => {
+      e.stopPropagation();
+      const selectedTarget = terminateTargetByAgent[agent.agent_id] || TERMINATE_TARGETS[0].value;
+      const selectedLabel = terminateTargetLabel(selectedTarget);
+      const confirmStop = window.confirm(`Stop ${selectedLabel} on ${agent.hostname}?`);
+      if (!confirmStop) return;
+
+      setTerminateBusyByAgent(prev => ({ ...prev, [agent.agent_id]: true }));
+      try {
+        const response = await fetch(`${API_BASE}/agents/${encodeURIComponent(agent.agent_id)}/terminate-process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ process_name: selectedTarget }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.detail || 'Unable to send stop request.');
+        }
+        window.alert(data?.message || `Stop request queued for ${agent.hostname}.`);
+      } catch (error) {
+        window.alert(`Stop request failed: ${error.message || error}`);
+      } finally {
+        setTerminateBusyByAgent(prev => ({ ...prev, [agent.agent_id]: false }));
+      }
+    };
+
+    const handleTerminateAlertProcess = async (alert, e) => {
+      e.stopPropagation();
+      const target = inferTerminateTarget(alert.matched_log, alert.rule_name);
+      const pid = extractProcessPid(alert.matched_log);
+      if (!target) {
+        window.alert('This log does not map to a supported app target.');
+        return;
+      }
+
+      const agent = agentById[alert.agent_id] || agents.find(item => item.hostname === alert.hostname);
+      if (!agent) {
+        window.alert(`Machine ${alert.hostname} is not available right now.`);
+        return;
+      }
+
+      const online = (Date.now()/1000 - agent.last_seen) < 60;
+      if (!online) {
+        window.alert(`Machine ${agent.hostname} is offline right now.`);
+        return;
+      }
+
+      const targetLabel = terminateTargetLabel(target);
+      const confirmStop = window.confirm(`Stop ${targetLabel} on ${agent.hostname}?`);
+      if (!confirmStop) return;
+
+      setTerminateBusyByAgent(prev => ({ ...prev, [agent.agent_id]: true }));
+      try {
+        const response = await fetch(`${API_BASE}/agents/${encodeURIComponent(agent.agent_id)}/terminate-process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pid ? { process_name: target, pid } : { process_name: target }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.detail || 'Unable to send stop request.');
+        }
+        window.alert(data?.message || `Stop request queued for ${agent.hostname}.`);
+      } catch (error) {
+        window.alert(`Stop request failed: ${error.message || error}`);
+      } finally {
+        setTerminateBusyByAgent(prev => ({ ...prev, [agent.agent_id]: false }));
+      }
     };
 
     const toggleRow = id => setExpanded(p => {
@@ -1275,6 +1450,9 @@
                     ) : (
                       filtered.map(a => {
                         const src = detectSource(a.matched_log, a.rule_name);
+                        const terminateTarget = inferTerminateTarget(a.matched_log, a.rule_name);
+                        const alertAgent = agentById[a.agent_id] || agents.find(item => item.hostname === a.hostname);
+                        const alertAgentOnline = alertAgent ? (Date.now()/1000 - alertAgent.last_seen) < 60 : false;
                         return (
                           <React.Fragment key={a.id}>
                             <tr className="alert-row" onClick={() => toggleRow(a.id)}>
@@ -1288,9 +1466,27 @@
                                 </span>
                               </td>
                               <td>
-                                <button className="ack-btn" onClick={e=>handleAck(a.id,e)} title="Mark as acknowledged">
-                                  <Icon icon="✅" className="icon-tight" />Acknowledge
-                                </button>
+                                <div className="row-actions">
+                                  <button className="ack-btn" onClick={e=>handleAck(a.id,e)} title="Mark as acknowledged">
+                                    <Icon icon="✅" className="icon-tight" />Acknowledge
+                                  </button>
+                                  {terminateTarget && (
+                                    <button
+                                      className="terminate-btn"
+                                      onClick={e => handleTerminateAlertProcess(a, e)}
+                                      disabled={!alertAgentOnline || !!terminateBusyByAgent[a.agent_id]}
+                                      title={
+                                        !alertAgent
+                                          ? 'Machine not available'
+                                          : !alertAgentOnline
+                                            ? 'Machine is offline'
+                                            : `Stop ${terminateTargetLabel(terminateTarget)} on this machine`
+                                      }
+                                    >
+                                      {terminateBusyByAgent[a.agent_id] ? 'Sending...' : 'Stop App'}
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                               <td style={{textAlign:'center'}}>
                                 <span className={`expand-chevron ${expanded.has(a.id)?'open':''}`}>▾</span>
@@ -1341,6 +1537,27 @@
                           </span>
                         </div>
                         <div className="agent-last-seen">Last seen {timeAgo(a.last_seen)}</div>
+                        <div className="agent-controls" onClick={e => e.stopPropagation()}>
+                          <select
+                            className="agent-control-select"
+                            value={terminateTargetByAgent[a.agent_id] || TERMINATE_TARGETS[0].value}
+                            onChange={e => setTerminateTargetByAgent(prev => ({ ...prev, [a.agent_id]: e.target.value }))}
+                            disabled={!online}
+                            title="Choose app type to stop on this machine"
+                          >
+                            {TERMINATE_TARGETS.map(target => (
+                              <option key={target.value} value={target.value}>{target.label}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="agent-control-btn"
+                            onClick={e => handleTerminateProcess(a, e)}
+                            disabled={!online || terminateBusyByAgent[a.agent_id]}
+                            title="Send terminate command"
+                          >
+                            {terminateBusyByAgent[a.agent_id] ? 'Sending...' : 'Stop App'}
+                          </button>
+                        </div>
                       </div>
                     );
                   })

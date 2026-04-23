@@ -9,8 +9,7 @@ import socket
 import threading
 import os
 import sys
-import queue
-import time
+import json
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from shared.logger import get_logger
@@ -18,7 +17,16 @@ logger = get_logger("Manager")
 from shared.config import MANAGER_HOST, MANAGER_PORT, MANAGER_BUFFER_SIZE
 from shared.models  import LogEvent
 from rule_engine.engine import RuleEngine
-from database.db import init_db, insert_log, insert_alert, upsert_agent
+from database.db import (
+    init_db,
+    insert_log,
+    insert_alert,
+    upsert_agent,
+    claim_queued_agent_commands,
+    mark_agent_command_sent,
+    mark_agent_command_failed,
+    complete_agent_command,
+)
 from shared.security import CertificateManager, SecureSocket
 from pathlib import Path
 
@@ -36,9 +44,12 @@ class AgentHandler(threading.Thread):
         self.conn   = conn
         self.addr   = addr
         self.engine = engine
+        self.agent_id: str | None = None
+        self.hostname: str | None = None
         # Set socket options for reliability
         self.conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         self.conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.conn.settimeout(1.0)
 
     def run(self):
         logger.info(f"Agent connected from {self.addr}")
@@ -46,7 +57,11 @@ class AgentHandler(threading.Thread):
 
         try:
             while True:
-                data = self.conn.recv(MANAGER_BUFFER_SIZE)
+                try:
+                    data = self.conn.recv(MANAGER_BUFFER_SIZE)
+                except socket.timeout:
+                    self._dispatch_pending_commands()
+                    continue
                 if not data:
                     break  # Agent disconnected
 
@@ -61,6 +76,7 @@ class AgentHandler(threading.Thread):
                         if line.startswith("GET ") or line.startswith("POST ") or line.startswith("HTTP/"):
                             break
                         self._process(line)
+                self._dispatch_pending_commands()
 
         except ConnectionResetError:
             pass
@@ -73,16 +89,23 @@ class AgentHandler(threading.Thread):
     def _process(self, raw: str):
         """Deserialize a JSON log event → rule check → save to DB."""
         try:
-            import json
             data = json.loads(raw)
 
             # ── Heartbeat message — just update agent last_seen, no alert ──
             if data.get("type") == "heartbeat":
-                upsert_agent(data["agent_id"], data["hostname"])
+                self.agent_id = data["agent_id"]
+                self.hostname = data["hostname"]
+                upsert_agent(self.agent_id, self.hostname)
+                return
+
+            if data.get("type") == "command_result":
+                self._process_command_result(data)
                 return
 
             # ── Normal log event ──
             event = LogEvent.from_json(raw)
+            self.agent_id = event.agent_id
+            self.hostname = event.hostname
             upsert_agent(event.agent_id, event.hostname)
             insert_log(event)
             alerts = self.engine.evaluate(event)
@@ -91,6 +114,54 @@ class AgentHandler(threading.Thread):
 
         except Exception as e:
             logger.info(f"Failed to process event: {e} | raw={raw[:80]}")
+
+    def _dispatch_pending_commands(self):
+        if not self.agent_id:
+            return
+        commands = claim_queued_agent_commands(self.agent_id, limit=10)
+        for command in commands:
+            payload = {
+                "type": "command",
+                "command_id": command["id"],
+                "action": command["action"],
+                "payload": command["payload"],
+            }
+            try:
+                self.conn.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+                mark_agent_command_sent(command["id"])
+                logger.info(
+                    "Sent command_id=%s action=%s to agent_id=%s",
+                    command["id"],
+                    command["action"],
+                    self.agent_id,
+                )
+            except Exception as e:
+                mark_agent_command_failed(command["id"], f"Dispatch failed: {e}")
+                raise
+
+    def _process_command_result(self, data: dict):
+        command_id = data.get("command_id")
+        if not command_id:
+            return
+
+        self.agent_id = data.get("agent_id") or self.agent_id
+        self.hostname = data.get("hostname") or self.hostname
+
+        success = bool(data.get("success"))
+        result_message = str(data.get("result_message") or "")
+        action = str(data.get("action") or "unknown")
+        complete_agent_command(int(command_id), success=success, result_message=result_message)
+
+        if self.agent_id and self.hostname:
+            insert_log(
+                LogEvent(
+                    self.agent_id,
+                    self.hostname,
+                    "AGENT_CONTROL",
+                    f"COMMAND_RESULT: CommandID={command_id} | Action={action} | Success={success} | Message={result_message}",
+                    timestamp=data.get("timestamp"),
+                )
+            )
 
 
 # ─────────────────────────────────────────────

@@ -83,6 +83,7 @@ python -m agent.agent
 | Variable | Description |
 |---|---|
 | `MANAGER_HOST` | Manager bind/connect host |
+| `AGENT_MANAGER_HOST` | Agent-side manager IP/hostname (override for remote manager address) |
 | `MANAGER_PORT` | Manager TCP port (default `9000`) |
 | `API_HOST` | Dashboard API host (default `0.0.0.0`) |
 | `API_PORT` | Dashboard API port (default `8000`) |
@@ -127,6 +128,7 @@ Rule format:
 - Rule-based alerting with dedup support
 - Dashboard with acknowledgements and severity filters
 - Per-teacher login accounts (`/login`)
+- Teacher one-click remote process stop (Chrome/terminal/browser apps)
 - AI Chatbot panel for teacher questions (local analytics)
 - One-click class period report card (print-friendly)
 - Storage control via data pruning endpoint
@@ -141,6 +143,7 @@ Rule format:
 | GET | `/api/alerts` | List alerts (filter: ?severity=HIGH) |
 | GET | `/api/alerts/stats` | Alert counts per severity |
 | POST | `/api/alerts/{id}/acknowledge` | Acknowledge an alert |
+| POST | `/api/agents/{agent_id}/terminate-process` | Queue a remote process stop command for a machine |
 | GET | `/api/logs` | Recent logs |
 | GET | `/api/insights/teacher` | Teacher AI summary/analytics |
 | GET | `/api/insights/teacher/stream` | Real-time teacher insights stream (SSE) |
