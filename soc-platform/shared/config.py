@@ -19,25 +19,18 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-<<<<<<< HEAD
 MANAGER_HOST = os.getenv("MANAGER_HOST", "0.0.0.0")           # Listen on all interfaces
 MANAGER_PORT = int(os.getenv("MANAGER_PORT", "9000"))         # Port agents connect to
 MANAGER_BUFFER_SIZE = 8192         # Increased buffer for bulk events
 MANAGER_MAX_CONNECTIONS = 100      # Max concurrent agent connections
+# Agent-side remote manager endpoint (can differ from MANAGER_HOST bind value)
+AGENT_MANAGER_HOST = os.getenv(
+    "AGENT_MANAGER_HOST",
+    MANAGER_HOST if MANAGER_HOST != "0.0.0.0" else "127.0.0.1",
+)
 
 # --- API Server ---
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
-=======
-MANAGER_HOST = os.getenv("MANAGER_HOST", "139.59.50.143")           # Listen on all interfaces
-MANAGER_PORT = int(os.getenv("MANAGER_PORT", "9000"))         # Port agents connect to
-MANAGER_BUFFER_SIZE = 8192         # Increased buffer for bulk events
-MANAGER_MAX_CONNECTIONS = 100      # Max concurrent agent connections
-# Agent-side remote manager endpoint (can differ from MANAGER_HOST bind value)
-AGENT_MANAGER_HOST = os.getenv("AGENT_MANAGER_HOST", MANAGER_HOST)
-
-# --- API Server ---
-API_HOST = os.getenv("API_HOST", "139.59.50.143")
->>>>>>> 8d58d21 (Kill Feature Added. - Ubuntu & Mac)
 API_PORT = int(os.getenv("API_PORT", "8000"))
 DASHBOARD_AUTO_RELOAD = _env_bool("DASHBOARD_AUTO_RELOAD", True)
 

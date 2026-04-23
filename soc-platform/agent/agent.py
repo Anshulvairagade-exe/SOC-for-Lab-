@@ -50,14 +50,6 @@ def _env_csv(name: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-<<<<<<< HEAD
-class Agent:
-    def __init__(self):
-        self.agent_id = os.getenv("AGENT_ID", AGENT_ID)
-        self.hostname = os.getenv("AGENT_HOSTNAME", AGENT_HOSTNAME)
-        self.manager_host = os.getenv("MANAGER_HOST", MANAGER_HOST)
-        self.manager_port = int(os.getenv("MANAGER_PORT", MANAGER_PORT))
-=======
 class Agent:
     TERMINATE_TARGETS = {"chrome", "firefox", "brave", "terminal"}
 
@@ -68,7 +60,6 @@ class Agent:
         if not self.manager_host:
             self.manager_host = MANAGER_HOST
         self.manager_port = int(os.getenv("MANAGER_PORT", MANAGER_PORT))
->>>>>>> 8d58d21 (Kill Feature Added. - Ubuntu & Mac)
         self.send_interval = int(os.getenv("AGENT_SEND_INTERVAL", AGENT_SEND_INTERVAL))
         self.heartbeat_interval = int(os.getenv("AGENT_HEARTBEAT_INTERVAL", AGENT_HEARTBEAT_INTERVAL))
         
