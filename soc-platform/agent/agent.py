@@ -4,7 +4,6 @@ import time
 import json
 import platform
 import socket
-import subprocess
 import psutil
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -167,21 +166,38 @@ class Agent:
     def _target_patterns(self, target: str) -> list[str]:
         if target == "chrome":
             if _PLATFORM == "Windows":
-                return ["chrome.exe"]
+                return ["chrome.exe", "chrome"]
+            if _PLATFORM == "Darwin":
+                return ["google chrome", "google chrome helper", "chrome", "chromium"]
             return ["chrome", "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]
         if target == "firefox":
             if _PLATFORM == "Windows":
-                return ["firefox.exe"]
+                return ["firefox.exe", "firefox"]
+            if _PLATFORM == "Darwin":
+                return ["firefox", "firefox helper", "firefox-bin"]
             return ["firefox", "firefox-bin"]
         if target == "brave":
             if _PLATFORM == "Windows":
-                return ["brave.exe"]
+                return ["brave.exe", "brave"]
+            if _PLATFORM == "Darwin":
+                return ["brave browser", "brave browser helper", "brave"]
             return ["brave", "brave-browser", "brave-browser-stable"]
         if target == "terminal":
             if _PLATFORM == "Windows":
-                return ["cmd.exe", "powershell.exe", "pwsh.exe", "wt.exe", "WindowsTerminal.exe"]
+                return [
+                    "cmd.exe", "cmd",
+                    "powershell.exe", "powershell",
+                    "pwsh.exe", "pwsh",
+                    "wt.exe", "wt",
+                    "windowsterminal.exe", "windowsterminal",
+                ]
             if _PLATFORM == "Darwin":
-                return ["Terminal", "iTerm2", "Warp", "Alacritty", "kitty", "Hyper"]
+                return [
+                    "terminal", "terminal helper",
+                    "iterm2", "itermserver",
+                    "warp", "warp-terminal",
+                    "alacritty", "kitty", "hyper",
+                ]
             return [
                 "gnome-terminal", "gnome-terminal-server", "xterm", "konsole",
                 "xfce4-terminal", "tilix", "alacritty", "kitty", "kgx", "mate-terminal",
@@ -192,16 +208,61 @@ class Agent:
     def _target_matchers(self, target: str) -> set[str]:
         return {pattern.lower() for pattern in self._target_patterns(target)}
 
+    def _normalized_name_variants(self, raw_value: str | None) -> set[str]:
+        raw = str(raw_value or "").strip()
+        if not raw:
+            return set()
+
+        normalized = raw.replace("\\", "/").strip().lower()
+        variants = {normalized}
+        if "/" in normalized:
+            variants.add(normalized.rsplit("/", 1)[-1])
+
+        expanded: set[str] = set()
+        for value in variants:
+            clean = value.strip()
+            if not clean:
+                continue
+            if clean.endswith(".app"):
+                clean = clean[:-4]
+            expanded.add(clean)
+            if clean.endswith(".exe"):
+                expanded.add(clean[:-4])
+        return expanded
+
+    def _process_identity_names(self, proc: psutil.Process) -> set[str]:
+        info = proc.info if isinstance(getattr(proc, "info", None), dict) else {}
+        identities: set[str] = set()
+
+        for key in ("name", "exe"):
+            identities.update(self._normalized_name_variants(info.get(key)))
+
+        try:
+            identities.update(self._normalized_name_variants(proc.name()))
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+        try:
+            identities.update(self._normalized_name_variants(proc.exe()))
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+        return identities
+
     def _process_matches_target(self, proc: psutil.Process, target: str) -> bool:
         matchers = self._target_matchers(target)
         if not matchers:
             return False
-        try:
-            name = (proc.name() or "").strip().lower()
-            exe = os.path.basename(proc.exe() or "").strip().lower()
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+
+        identities = self._process_identity_names(proc)
+        if not identities:
             return False
-        return name in matchers or exe in matchers
+
+        for matcher in matchers:
+            for identity in identities:
+                if identity == matcher or identity.startswith(f"{matcher} "):
+                    return True
+        return False
 
     def _select_target_process(self, target: str) -> psutil.Process | None:
         candidates: list[tuple[int, float, int, psutil.Process]] = []
@@ -241,24 +302,41 @@ class Agent:
             root_pid = proc.pid
             descendants = proc.children(recursive=True)
             targets = descendants + [proc]
+            denied_pids: set[int] = set()
             for item in targets:
                 try:
                     item.terminate()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     continue
                 except psutil.AccessDenied:
-                    pass
+                    denied_pids.add(item.pid)
 
-            gone, alive = psutil.wait_procs(targets, timeout=3)
+            _, alive = psutil.wait_procs(targets, timeout=3)
             for item in alive:
                 try:
                     item.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     continue
+                except psutil.AccessDenied:
+                    denied_pids.add(item.pid)
             if alive:
                 psutil.wait_procs(alive, timeout=2)
 
-            return True, f"Terminated {root_name} (PID {root_pid})."
+            try:
+                root_alive = proc.is_running() and proc.status() != psutil.STATUS_ZOMBIE
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
+                root_alive = False
+            except psutil.AccessDenied:
+                root_alive = False
+
+            if root_alive:
+                return False, f"Failed to terminate {root_name} (PID {root_pid}). Permission denied."
+
+            message = f"Terminated {root_name} (PID {root_pid})."
+            if denied_pids:
+                denied_list = ", ".join(str(pid) for pid in sorted(denied_pids))
+                message = f"{message} Some child processes could not be terminated (PID(s): {denied_list})."
+            return True, message
         except psutil.NoSuchProcess:
             return False, "The selected process is no longer running."
         except Exception as e:
